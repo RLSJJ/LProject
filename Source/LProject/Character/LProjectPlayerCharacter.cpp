@@ -5,12 +5,20 @@
 #include "AbilitySystem/LProjectAbilitySystemComponent.h"
 #include "AbilitySystem/Abilities/LProjectGA_Dash.h"
 #include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "InputAction.h"
 #include "InputActionValue.h"
+#include "InputCoreTypes.h"
+#include "InputMappingContext.h"
+#include "InputModifiers.h"
+#include "UObject/ConstructorHelpers.h"
 
 ALProjectPlayerCharacter::ALProjectPlayerCharacter()
 {
@@ -28,6 +36,17 @@ ALProjectPlayerCharacter::ALProjectPlayerCharacter()
 	TopDownCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("TopDownCamera"));
 	TopDownCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	TopDownCamera->bUsePawnControlRotation = false;
+
+	// Placeholder visible body: engine cube fitted to the capsule (collision stays on the capsule).
+	DevVisualMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DevVisualMesh"));
+	DevVisualMesh->SetupAttachment(GetCapsuleComponent());
+	DevVisualMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	DevVisualMesh->SetRelativeScale3D(FVector(0.68f, 0.68f, 1.76f));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (CubeMesh.Succeeded())
+	{
+		DevVisualMesh->SetStaticMesh(CubeMesh.Object);
+	}
 
 	// Movement: face the movement direction; ignore controller rotation (camera is fixed).
 	bUseControllerRotationPitch = false;
@@ -55,6 +74,8 @@ void ALProjectPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	EnsureDefaultInput();
+
 	if (const APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
@@ -71,6 +92,8 @@ void ALProjectPlayerCharacter::BeginPlay()
 void ALProjectPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	EnsureDefaultInput();
 
 	if (UEnhancedInputComponent* Input = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
@@ -98,6 +121,40 @@ void ALProjectPlayerCharacter::Input_Dash(const FInputActionValue& Value)
 	if (AbilitySystemComponent && DashAbility)
 	{
 		AbilitySystemComponent->TryActivateAbilityByClass(DashAbility);
+	}
+}
+
+void ALProjectPlayerCharacter::EnsureDefaultInput()
+{
+	// Editor-assigned assets win; only synthesize defaults for empty slots so the pawn is
+	// playable out of the box. Swap to real UInputAction/UInputMappingContext assets for production.
+	if (!MoveAction)
+	{
+		MoveAction = NewObject<UInputAction>(this, TEXT("DefaultMoveAction"));
+		MoveAction->ValueType = EInputActionValueType::Axis2D;
+	}
+	if (!DashAction)
+	{
+		DashAction = NewObject<UInputAction>(this, TEXT("DefaultDashAction"));
+		DashAction->ValueType = EInputActionValueType::Boolean;
+	}
+	if (!DefaultMappingContext)
+	{
+		UInputMappingContext* IMC = NewObject<UInputMappingContext>(this, TEXT("DefaultMappingContext"));
+
+		// WASD -> Axis2D move. Value: X = right (A/D), Y = forward (W/S).
+		IMC->MapKey(MoveAction, EKeys::D);                                                          // +X
+		IMC->MapKey(MoveAction, EKeys::A).Modifiers.Add(NewObject<UInputModifierNegate>(IMC));      // -X
+		IMC->MapKey(MoveAction, EKeys::W).Modifiers.Add(NewObject<UInputModifierSwizzleAxis>(IMC)); // X -> +Y
+		{
+			FEnhancedActionKeyMapping& Back = IMC->MapKey(MoveAction, EKeys::S);
+			Back.Modifiers.Add(NewObject<UInputModifierSwizzleAxis>(IMC));
+			Back.Modifiers.Add(NewObject<UInputModifierNegate>(IMC)); // X -> -Y
+		}
+
+		IMC->MapKey(DashAction, EKeys::SpaceBar);
+
+		DefaultMappingContext = IMC;
 	}
 }
 
