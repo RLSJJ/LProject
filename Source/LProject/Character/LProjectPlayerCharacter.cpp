@@ -12,20 +12,23 @@
 #include "Core/LProjectPawnData.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Engine/HitResult.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Input/LProjectInputConfig.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "InputCoreTypes.h"
 #include "InputMappingContext.h"
-#include "InputModifiers.h"
 #include "UObject/ConstructorHelpers.h"
 
 ALProjectPlayerCharacter::ALProjectPlayerCharacter()
 {
+	PrimaryActorTick.bCanEverTick = true; // needed for click-to-move auto-run
+
 	// Quarterview camera: fixed angle, does not rotate with the pawn.
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
@@ -61,8 +64,26 @@ ALProjectPlayerCharacter::ALProjectPlayerCharacter()
 	{
 		Movement->bOrientRotationToMovement = true;
 		Movement->RotationRate = FRotator(0.0f, 720.0f, 0.0f);
-		Movement->bConstrainToPlane = true;
-		Movement->bSnapToPlaneAtStart = true;
+	}
+}
+
+void ALProjectPlayerCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// Auto-run: after a short right-click, keep walking to the cached point until we reach it.
+	if (bAutoRunToDestination)
+	{
+		FVector ToDest = CachedDestination - GetActorLocation();
+		ToDest.Z = 0.0f;
+		if (ToDest.SizeSquared() <= FMath::Square(DestinationAcceptanceRadius))
+		{
+			bAutoRunToDestination = false;
+		}
+		else
+		{
+			AddMovementInput(ToDest.GetSafeNormal(), 1.0f);
+		}
 	}
 }
 
@@ -105,10 +126,21 @@ void ALProjectPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		return;
 	}
 
-	// Native: movement.
+	// Native: right-mouse click-to-move (steer while held, walk-to-point on a tap).
 	if (const UInputAction* MoveAction = InputConfig->FindNativeInputActionForTag(TAG_InputTag_Move))
 	{
-		Input->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ALProjectPlayerCharacter::Move);
+		Input->BindAction(MoveAction,
+		    ETriggerEvent::Triggered,
+		    this,
+		    &ALProjectPlayerCharacter::OnSetDestinationTriggered);
+		Input->BindAction(MoveAction,
+		    ETriggerEvent::Completed,
+		    this,
+		    &ALProjectPlayerCharacter::OnSetDestinationReleased);
+		Input->BindAction(MoveAction,
+		    ETriggerEvent::Canceled,
+		    this,
+		    &ALProjectPlayerCharacter::OnSetDestinationReleased);
 	}
 
 	// Abilities: activate by input tag (data-driven; add an ability input = add a config entry).
@@ -130,12 +162,36 @@ void ALProjectPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	}
 }
 
-void ALProjectPlayerCharacter::Move(const FInputActionValue& Value)
+void ALProjectPlayerCharacter::OnSetDestinationTriggered(const FInputActionValue& Value)
 {
-	const FVector2D Axis = Value.Get<FVector2D>();
-	// Quarterview with a fixed, world-aligned camera: move along world axes.
-	AddMovementInput(FVector::ForwardVector, Axis.Y);
-	AddMovementInput(FVector::RightVector, Axis.X);
+	FollowTime += GetWorld()->GetDeltaSeconds();
+	bAutoRunToDestination = false; // manual follow takes over while the button is held
+
+	if (const APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		FHitResult Hit;
+		if (PC->GetHitResultUnderCursor(ECC_Visibility, false, Hit))
+		{
+			CachedDestination = Hit.ImpactPoint;
+		}
+	}
+
+	FVector ToDest = CachedDestination - GetActorLocation();
+	ToDest.Z = 0.0f;
+	if (!ToDest.IsNearlyZero())
+	{
+		AddMovementInput(ToDest.GetSafeNormal(), 1.0f);
+	}
+}
+
+void ALProjectPlayerCharacter::OnSetDestinationReleased(const FInputActionValue& Value)
+{
+	// A short press (click) means "walk to that point"; a long hold was already manual steering.
+	if (FollowTime <= ShortPressThreshold)
+	{
+		bAutoRunToDestination = true;
+	}
+	FollowTime = 0.0f;
 }
 
 void ALProjectPlayerCharacter::Input_AbilityTagPressed(const FInputActionValue& Value, FGameplayTag InputTag)
@@ -180,22 +236,15 @@ void ALProjectPlayerCharacter::EnsureDefaultPawnData()
 		return;
 	}
 
-	// Input actions.
+	// Input actions: move = a button (right mouse), dash = a button (space).
 	UInputAction* MoveAction = NewObject<UInputAction>(this, TEXT("DefaultMoveAction"));
-	MoveAction->ValueType = EInputActionValueType::Axis2D;
+	MoveAction->ValueType = EInputActionValueType::Boolean;
 	UInputAction* DashAction = NewObject<UInputAction>(this, TEXT("DefaultDashAction"));
 	DashAction->ValueType = EInputActionValueType::Boolean;
 
-	// Mapping context: WASD -> Axis2D move (X = right, Y = forward), Space -> dash.
+	// Mapping context: right mouse -> move-to-cursor, Space -> dash.
 	UInputMappingContext* IMC = NewObject<UInputMappingContext>(this, TEXT("DefaultMappingContext"));
-	IMC->MapKey(MoveAction, EKeys::D);                                                          // +X
-	IMC->MapKey(MoveAction, EKeys::A).Modifiers.Add(NewObject<UInputModifierNegate>(IMC));      // -X
-	IMC->MapKey(MoveAction, EKeys::W).Modifiers.Add(NewObject<UInputModifierSwizzleAxis>(IMC)); // X -> +Y
-	{
-		FEnhancedActionKeyMapping& Back = IMC->MapKey(MoveAction, EKeys::S);
-		Back.Modifiers.Add(NewObject<UInputModifierSwizzleAxis>(IMC));
-		Back.Modifiers.Add(NewObject<UInputModifierNegate>(IMC)); // X -> -Y
-	}
+	IMC->MapKey(MoveAction, EKeys::RightMouseButton);
 	IMC->MapKey(DashAction, EKeys::SpaceBar);
 
 	// Input config: action -> tag.
