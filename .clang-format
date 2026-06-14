@@ -1,0 +1,54 @@
+# Unreal Engine 5.7 C++ style — clang-format 20.x (Visual Studio bundled LLVM)
+# Discovered automatically by clang-format walking up from Source/ files.
+# Conservative on purpose: keeps UE include order, no aggressive re-wrapping.
+Language: Cpp
+BasedOnStyle: LLVM
+
+# --- Indentation: UE uses hard tabs, width 4 ---
+UseTab: ForIndentation
+TabWidth: 4
+IndentWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
+NamespaceIndentation: None
+
+# --- Braces: UE uses Allman (each brace on its own line) ---
+BreakBeforeBraces: Allman
+
+# --- Pointers / references attach to the type: int32* Foo, FString& Bar ---
+PointerAlignment: Left
+ReferenceAlignment: Left
+DerivePointerAlignment: false
+
+# --- Includes: DO NOT reorder. UE requires the matching header first and
+#     *.generated.h last; sorting would break compilation. ---
+SortIncludes: false
+
+# --- Keep statements expanded (UE never collapses onto one line) ---
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+
+# --- Line length: wrap, but generously (UE has no hard limit) ---
+ColumnLimit: 120
+
+# --- Parameter / argument packing ---
+BinPackParameters: false
+BinPackArguments: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowAllArgumentsOnNextLine: false
+
+# --- Spacing ---
+SpaceBeforeParens: ControlStatements
+Cpp11BracedListStyle: false
+FixNamespaceComments: true
+AlignTrailingComments: true
+AlignAfterOpenBracket: DontAlign
+
+# --- Misc ---
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+ReflowComments: false

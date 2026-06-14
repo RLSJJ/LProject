@@ -15,9 +15,11 @@ The repo root and the actual UE project are **nested**: the `.uproject` lives at
 `D:\Claude\LProject\LProject\LProject.uproject`, one level below the outer folder. Run all UE
 tooling from `D:\Claude\LProject\LProject` (the folder containing `LProject.sln`).
 
-This folder is **not a git repository** yet. Version control operations (diff review, worktrees,
-rollback) require running `git init` first. When you do, make sure `Binaries/`, `Intermediate/`,
-`DerivedDataCache/`, and `Saved/` are git-ignored — they are build artifacts.
+This **inner** folder (`D:\Claude\LProject\LProject`) is a git repository on branch `main`,
+tracking `origin` = `https://github.com/RLSJJ/LProject.git`, with `.gitignore` + Git LFS
+configured (`Binaries/`, `Intermediate/`, `DerivedDataCache/`, `Saved/`, and
+`compile_commands.json` are ignored). Note the **outer** folder (`D:\Claude\LProject`, the Claude
+Code working dir) is NOT the repo root — run git from the inner folder (or use `git -C`).
 
 ## Build, run, and regenerate
 
