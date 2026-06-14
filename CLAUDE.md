@@ -79,8 +79,9 @@ Combat is built on the **Gameplay Ability System**. Key classes (all prefixed `L
   `AbilitySystemComponent` and a `ULProjectAttributeSet` (both default subobjects → auto-registered),
   implements `IAbilitySystemInterface`, calls `InitAbilityActorInfo` in `PossessedBy`/`BeginPlay`.
   ASC replication mode is `Minimal` (single-player).
-- **`ULProjectAbilitySystemComponent`** (`AbilitySystem/`) — ASC subclass (skeleton; future input
-  binding + mechanic helpers).
+- **`ULProjectAbilitySystemComponent`** (`AbilitySystem/`) — ASC subclass. `AbilityInputTagPressed(tag)`
+  activates the granted ability whose spec carries that input tag (tag-driven input). Future home for
+  raid-mechanic helpers.
 - **`ULProjectAttributeSet`** (`AbilitySystem/Attributes/`) — base attributes (`Health`, `MaxHealth`)
   with full replication (`OnRep` + `DOREPLIFETIME_CONDITION_NOTIFY(... REPNOTIFY_Always)`) and clamping
   in `PreAttributeChange`. Uses the standard `ATTRIBUTE_ACCESSORS` macro (defined in the header). Add
@@ -90,21 +91,32 @@ Combat is built on the **Gameplay Ability System**. Key classes (all prefixed `L
 - **`ULProjectGA_Dash`** — first ability: `LaunchCharacter` along move/facing direction + i-frames via
   the `TAG_State_Invulnerable` loose tag, ended on a timer.
 - **`ALProjectPlayerCharacter`** (`Character/`) — quarterview avatar: SpringArm + Camera (fixed angle),
-  world-relative WASD via Enhanced Input, `bOrientRotationToMovement`. Grants `DefaultAbilities` +
-  `DashAbility` on possess; dash input → `TryActivateAbilityByClass`.
+  world-relative WASD via Enhanced Input, `bOrientRotationToMovement`, plus a placeholder cube mesh
+  (`DevVisualMesh`). Driven by a `ULProjectPawnData`; input is bound by tag. If no PawnData is assigned,
+  `EnsureDefaultPawnData()` builds a WASD+Space default in code so it is playable with zero editor assets.
 - **`ALProjectPlayerController`** / **`ALProjectGameMode`** (`Player/`, `Core/`) — controller skeleton;
   game mode wires pawn + controller and is the `GlobalDefaultGameMode`.
 - **`ULProjectAssetManager`** (`Core/`) — forces `UAbilitySystemGlobals::Get().InitGlobalData()` in
   `StartInitialLoading` (deterministic GAS init; auto-called in 5.3+ but explicit here). Registered via
   `[/Script/Engine.Engine] AssetManagerClassName`.
 - **Native gameplay tags** — `UE_DECLARE_GAMEPLAY_TAG_EXTERN` / `UE_DEFINE_GAMEPLAY_TAG` in
-  `Core/LProjectGameplayTags.{h,cpp}`. Prefer these over string lookups.
+  `Core/LProjectGameplayTags.{h,cpp}` (state + `InputTag.*`). Prefer these over string lookups.
 
-**Editor TODO to actually play** (C++ logic is done; these are binary assets only creatable in-editor):
-1. Input Actions: `IA_Move` (Axis2D), `IA_Dash` (Digital).
-2. An Input Mapping Context (`IMC_Default`): WASD → IA_Move, Space → IA_Dash.
-3. A Blueprint subclass of `ALProjectPlayerCharacter` with `DefaultMappingContext`/`MoveAction`/
-   `DashAction` + a mesh assigned; point the game mode's default pawn at it.
+**Data-driven content pipeline** — kits and input are data, not hardcoded:
+- **`ULProjectAbilitySet`** (`AbilitySystem/`) — grantable bundle of abilities (each with an `InputTag`)
+  + attribute sets; `GiveToAbilitySystem(ASC)` grants them.
+- **`ULProjectInputConfig`** (`Input/`) — maps `UInputAction` ↔ `InputTag` (native + ability inputs).
+- **`ULProjectPawnData`** (`Core/`) — bundles AbilitySet + InputConfig + mapping context = one pawn
+  archetype; the player and each boss reference one.
+- **`ILProjectCombatant`** (`Combat/`) — health/alive contract on `ALProjectCharacterBase`.
+- **Adding an ability = make a `UGameplayAbility` + add it to an AbilitySet + map an input in an
+  InputConfig. No character code changes.** Activation: input (InputTag) → `AbilityInputTagPressed` →
+  the spec tagged with that InputTag activates.
+
+**To play:** works out of the box (code-default WASD + Space + cube mesh). Just ensure the play map uses
+`LProjectGameMode` (no GameMode override) and has a PlayerStart. **For production**, author real
+`IA_*`/`IMC_*` assets + an AbilitySet/PawnData and assign PawnData on a BP subclass — the code default
+is only a stopgap.
 
 ## Engine configuration that shapes the project
 
