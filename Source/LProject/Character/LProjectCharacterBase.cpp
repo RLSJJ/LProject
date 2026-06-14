@@ -23,6 +23,21 @@ UAbilitySystemComponent* ALProjectCharacterBase::GetAbilitySystemComponent() con
 	return AbilitySystemComponent;
 }
 
+float ALProjectCharacterBase::GetHealth() const
+{
+	return AttributeSet ? AttributeSet->GetHealth() : 0.0f;
+}
+
+float ALProjectCharacterBase::GetMaxHealth() const
+{
+	return AttributeSet ? AttributeSet->GetMaxHealth() : 0.0f;
+}
+
+bool ALProjectCharacterBase::IsAlive() const
+{
+	return GetHealth() > 0.0f;
+}
+
 void ALProjectCharacterBase::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);

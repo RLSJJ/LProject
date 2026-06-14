@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
+#include "Combat/LProjectCombatInterface.h"
 #include "LProjectCharacterBase.generated.h"
 
 class ULProjectAbilitySystemComponent;
@@ -13,12 +14,12 @@ class ULProjectAttributeSet;
 /**
  * Shared base for all GAS-driven characters (player avatar + raid boss).
  *
- * Owns the AbilitySystemComponent and the base attribute set, and implements
- * IAbilitySystemInterface so any GAS query can resolve the ASC from the actor.
- * ASC lives on the pawn (fine for single-player); revisit if respawn persistence is ever needed.
+ * Owns the AbilitySystemComponent and the base attribute set; implements IAbilitySystemInterface
+ * (GAS lookup) and ILProjectCombatant (combat queries). ASC lives on the pawn (fine for
+ * single-player); revisit if respawn persistence is ever needed.
  */
 UCLASS(Abstract)
-class LPROJECT_API ALProjectCharacterBase : public ACharacter, public IAbilitySystemInterface
+class LPROJECT_API ALProjectCharacterBase : public ACharacter, public IAbilitySystemInterface, public ILProjectCombatant
 {
 	GENERATED_BODY()
 
@@ -28,6 +29,12 @@ public:
 	//~ Begin IAbilitySystemInterface
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	//~ End IAbilitySystemInterface
+
+	//~ Begin ILProjectCombatant
+	virtual float GetHealth() const override;
+	virtual float GetMaxHealth() const override;
+	virtual bool IsAlive() const override;
+	//~ End ILProjectCombatant
 
 	ULProjectAbilitySystemComponent* GetLProjectAbilitySystemComponent() const
 	{

@@ -9,3 +9,7 @@
 
 /** Actor is immune to incoming damage (e.g. during a dash i-frame window). */
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_Invulnerable);
+
+// --- Input tags: an InputConfig maps a UInputAction to one of these; abilities activate by tag. ---
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_InputTag_Move);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_InputTag_Dash);

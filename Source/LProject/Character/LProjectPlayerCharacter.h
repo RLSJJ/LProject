@@ -4,23 +4,21 @@
 
 #include "CoreMinimal.h"
 #include "Character/LProjectCharacterBase.h"
+#include "GameplayTagContainer.h"
 #include "LProjectPlayerCharacter.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
 class UStaticMeshComponent;
-class UInputMappingContext;
-class UInputAction;
-class ULProjectGameplayAbility;
+class ULProjectPawnData;
 struct FInputActionValue;
 
 /**
- * Player avatar: quarterview camera, world-relative movement, GAS-driven dash.
+ * Player avatar: quarterview camera, world-relative movement, and a data-driven GAS kit.
  *
- * Input assets (UInputMappingContext + UInputAction) and ability classes can be assigned in the
- * editor on a Blueprint subclass / the CDO. If the input slots are left empty, EnsureDefaultInput()
- * builds a code-driven WASD + Space mapping at runtime so the pawn is immediately playable — the
- * production path is still to assign proper IMC/IA assets, which take priority when present.
+ * Behaviour is defined by a ULProjectPawnData (ability set + input config + mapping context).
+ * If PawnData is left empty, EnsureDefaultPawnData() builds a code-driven WASD + Space default so
+ * the pawn is immediately playable; assigning a PawnData asset takes priority.
  */
 UCLASS()
 class LPROJECT_API ALProjectPlayerCharacter : public ALProjectCharacterBase
@@ -38,13 +36,14 @@ protected:
 	//~ End AActor/APawn interface
 
 	void Move(const FInputActionValue& Value);
-	void Input_Dash(const FInputActionValue& Value);
+	void Input_AbilityTagPressed(const FInputActionValue& Value, FGameplayTag InputTag);
+	void Input_AbilityTagReleased(const FInputActionValue& Value, FGameplayTag InputTag);
 
-	/** If the IMC/action slots are empty, construct a default WASD + Space mapping in code. */
-	void EnsureDefaultInput();
+	/** Grants PawnData's ability set, or the code-default dash when no PawnData is set. Authority only. */
+	void GrantAbilities();
 
-	/** Grants DefaultAbilities + DashAbility. Authority only. */
-	void GrantDefaultAbilities();
+	/** If PawnData is unset, build a code-driven default (WASD move + Space dash) so the pawn is playable. */
+	void EnsureDefaultPawnData();
 
 	// --- Camera ---
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
@@ -57,20 +56,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Visual")
 	TObjectPtr<UStaticMeshComponent> DevVisualMesh;
 
-	// --- Input (assign the assets in the editor) ---
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<UInputMappingContext> DefaultMappingContext;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<UInputAction> MoveAction;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<UInputAction> DashAction;
-
-	// --- Abilities ---
-	UPROPERTY(EditDefaultsOnly, Category = "Abilities")
-	TArray<TSubclassOf<ULProjectGameplayAbility>> DefaultAbilities;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Abilities")
-	TSubclassOf<ULProjectGameplayAbility> DashAbility;
+	/** Data-driven definition of this pawn (abilities + input). Leave empty for the code default. */
+	UPROPERTY(EditDefaultsOnly, Category = "Data")
+	TObjectPtr<ULProjectPawnData> PawnData;
 };

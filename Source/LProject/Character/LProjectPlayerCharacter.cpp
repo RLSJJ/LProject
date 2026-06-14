@@ -2,17 +2,21 @@
 
 #include "Character/LProjectPlayerCharacter.h"
 
-#include "AbilitySystem/LProjectAbilitySystemComponent.h"
 #include "AbilitySystem/Abilities/LProjectGA_Dash.h"
+#include "AbilitySystem/LProjectAbilitySet.h"
+#include "AbilitySystem/LProjectAbilitySystemComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/LProjectGameplayTags.h"
+#include "Core/LProjectPawnData.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Input/LProjectInputConfig.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "InputCoreTypes.h"
@@ -60,30 +64,29 @@ ALProjectPlayerCharacter::ALProjectPlayerCharacter()
 		Movement->bConstrainToPlane = true;
 		Movement->bSnapToPlaneAtStart = true;
 	}
-
-	DashAbility = ULProjectGA_Dash::StaticClass();
 }
 
 void ALProjectPlayerCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController); // base binds ability actor info
-	GrantDefaultAbilities();
+	EnsureDefaultPawnData();
+	GrantAbilities();
 }
 
 void ALProjectPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	EnsureDefaultInput();
+	EnsureDefaultPawnData();
 
 	if (const APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
 		        ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
-			if (DefaultMappingContext)
+			if (PawnData && PawnData->DefaultMappingContext)
 			{
-				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+				Subsystem->AddMappingContext(PawnData->DefaultMappingContext, 0);
 			}
 		}
 	}
@@ -93,17 +96,36 @@ void ALProjectPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	EnsureDefaultInput();
+	EnsureDefaultPawnData();
 
-	if (UEnhancedInputComponent* Input = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+	UEnhancedInputComponent* Input = Cast<UEnhancedInputComponent>(PlayerInputComponent);
+	const ULProjectInputConfig* InputConfig = PawnData ? PawnData->InputConfig : nullptr;
+	if (!Input || !InputConfig)
 	{
-		if (MoveAction)
+		return;
+	}
+
+	// Native: movement.
+	if (const UInputAction* MoveAction = InputConfig->FindNativeInputActionForTag(TAG_InputTag_Move))
+	{
+		Input->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ALProjectPlayerCharacter::Move);
+	}
+
+	// Abilities: activate by input tag (data-driven; add an ability input = add a config entry).
+	for (const FLProjectInputAction& Action : InputConfig->AbilityInputActions)
+	{
+		if (Action.InputAction && Action.InputTag.IsValid())
 		{
-			Input->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ALProjectPlayerCharacter::Move);
-		}
-		if (DashAction)
-		{
-			Input->BindAction(DashAction, ETriggerEvent::Started, this, &ALProjectPlayerCharacter::Input_Dash);
+			Input->BindAction(Action.InputAction,
+			    ETriggerEvent::Started,
+			    this,
+			    &ALProjectPlayerCharacter::Input_AbilityTagPressed,
+			    Action.InputTag);
+			Input->BindAction(Action.InputAction,
+			    ETriggerEvent::Completed,
+			    this,
+			    &ALProjectPlayerCharacter::Input_AbilityTagReleased,
+			    Action.InputTag);
 		}
 	}
 }
@@ -116,66 +138,80 @@ void ALProjectPlayerCharacter::Move(const FInputActionValue& Value)
 	AddMovementInput(FVector::RightVector, Axis.X);
 }
 
-void ALProjectPlayerCharacter::Input_Dash(const FInputActionValue& Value)
+void ALProjectPlayerCharacter::Input_AbilityTagPressed(const FInputActionValue& Value, FGameplayTag InputTag)
 {
-	if (AbilitySystemComponent && DashAbility)
+	if (AbilitySystemComponent)
 	{
-		AbilitySystemComponent->TryActivateAbilityByClass(DashAbility);
+		AbilitySystemComponent->AbilityInputTagPressed(InputTag);
 	}
 }
 
-void ALProjectPlayerCharacter::EnsureDefaultInput()
+void ALProjectPlayerCharacter::Input_AbilityTagReleased(const FInputActionValue& Value, FGameplayTag InputTag)
 {
-	// Editor-assigned assets win; only synthesize defaults for empty slots so the pawn is
-	// playable out of the box. Swap to real UInputAction/UInputMappingContext assets for production.
-	if (!MoveAction)
+	if (AbilitySystemComponent)
 	{
-		MoveAction = NewObject<UInputAction>(this, TEXT("DefaultMoveAction"));
-		MoveAction->ValueType = EInputActionValueType::Axis2D;
-	}
-	if (!DashAction)
-	{
-		DashAction = NewObject<UInputAction>(this, TEXT("DefaultDashAction"));
-		DashAction->ValueType = EInputActionValueType::Boolean;
-	}
-	if (!DefaultMappingContext)
-	{
-		UInputMappingContext* IMC = NewObject<UInputMappingContext>(this, TEXT("DefaultMappingContext"));
-
-		// WASD -> Axis2D move. Value: X = right (A/D), Y = forward (W/S).
-		IMC->MapKey(MoveAction, EKeys::D);                                                          // +X
-		IMC->MapKey(MoveAction, EKeys::A).Modifiers.Add(NewObject<UInputModifierNegate>(IMC));      // -X
-		IMC->MapKey(MoveAction, EKeys::W).Modifiers.Add(NewObject<UInputModifierSwizzleAxis>(IMC)); // X -> +Y
-		{
-			FEnhancedActionKeyMapping& Back = IMC->MapKey(MoveAction, EKeys::S);
-			Back.Modifiers.Add(NewObject<UInputModifierSwizzleAxis>(IMC));
-			Back.Modifiers.Add(NewObject<UInputModifierNegate>(IMC)); // X -> -Y
-		}
-
-		IMC->MapKey(DashAction, EKeys::SpaceBar);
-
-		DefaultMappingContext = IMC;
+		AbilitySystemComponent->AbilityInputTagReleased(InputTag);
 	}
 }
 
-void ALProjectPlayerCharacter::GrantDefaultAbilities()
+void ALProjectPlayerCharacter::GrantAbilities()
 {
 	if (!AbilitySystemComponent || !HasAuthority())
 	{
 		return;
 	}
 
-	TArray<TSubclassOf<ULProjectGameplayAbility>> Abilities = DefaultAbilities;
-	if (DashAbility)
+	if (PawnData && PawnData->AbilitySet)
 	{
-		Abilities.AddUnique(DashAbility);
+		PawnData->AbilitySet->GiveToAbilitySystem(AbilitySystemComponent, this);
+		return;
 	}
 
-	for (const TSubclassOf<ULProjectGameplayAbility>& Ability : Abilities)
+	// Code default (no ability set assigned): grant the dash directly, tagged for input activation.
+	FGameplayAbilitySpec DashSpec(ULProjectGA_Dash::StaticClass(), 1, INDEX_NONE, this);
+	DashSpec.GetDynamicSpecSourceTags().AddTag(TAG_InputTag_Dash);
+	AbilitySystemComponent->GiveAbility(DashSpec);
+}
+
+void ALProjectPlayerCharacter::EnsureDefaultPawnData()
+{
+	if (PawnData)
 	{
-		if (Ability)
-		{
-			AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(Ability, 1));
-		}
+		return;
 	}
+
+	// Input actions.
+	UInputAction* MoveAction = NewObject<UInputAction>(this, TEXT("DefaultMoveAction"));
+	MoveAction->ValueType = EInputActionValueType::Axis2D;
+	UInputAction* DashAction = NewObject<UInputAction>(this, TEXT("DefaultDashAction"));
+	DashAction->ValueType = EInputActionValueType::Boolean;
+
+	// Mapping context: WASD -> Axis2D move (X = right, Y = forward), Space -> dash.
+	UInputMappingContext* IMC = NewObject<UInputMappingContext>(this, TEXT("DefaultMappingContext"));
+	IMC->MapKey(MoveAction, EKeys::D);                                                          // +X
+	IMC->MapKey(MoveAction, EKeys::A).Modifiers.Add(NewObject<UInputModifierNegate>(IMC));      // -X
+	IMC->MapKey(MoveAction, EKeys::W).Modifiers.Add(NewObject<UInputModifierSwizzleAxis>(IMC)); // X -> +Y
+	{
+		FEnhancedActionKeyMapping& Back = IMC->MapKey(MoveAction, EKeys::S);
+		Back.Modifiers.Add(NewObject<UInputModifierSwizzleAxis>(IMC));
+		Back.Modifiers.Add(NewObject<UInputModifierNegate>(IMC)); // X -> -Y
+	}
+	IMC->MapKey(DashAction, EKeys::SpaceBar);
+
+	// Input config: action -> tag.
+	ULProjectInputConfig* InputConfig = NewObject<ULProjectInputConfig>(this, TEXT("DefaultInputConfig"));
+	FLProjectInputAction MoveEntry;
+	MoveEntry.InputAction = MoveAction;
+	MoveEntry.InputTag = TAG_InputTag_Move;
+	InputConfig->NativeInputActions.Add(MoveEntry);
+
+	FLProjectInputAction DashEntry;
+	DashEntry.InputAction = DashAction;
+	DashEntry.InputTag = TAG_InputTag_Dash;
+	InputConfig->AbilityInputActions.Add(DashEntry);
+
+	// Bundle it. AbilitySet stays null -> GrantAbilities() uses the direct dash grant above.
+	PawnData = NewObject<ULProjectPawnData>(this, TEXT("DefaultPawnData"));
+	PawnData->DefaultMappingContext = IMC;
+	PawnData->InputConfig = InputConfig;
 }
