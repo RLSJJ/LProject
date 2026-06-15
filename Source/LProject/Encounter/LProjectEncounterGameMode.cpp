@@ -21,7 +21,8 @@ static TAutoConsoleVariable<int32> CVarSkipFrontEnd(TEXT("lp.SkipFrontEnd"),
 ALProjectEncounterGameMode::ALProjectEncounterGameMode()
 {
 	BossClass = ALProjectBossCharacter::StaticClass();
-	HUDClass = ALProjectDebugHUD::StaticClass();
+	// In-fight readout is the UMG ULProjectRaidHUD (shown by the flow during Encounter).
+	// ALProjectDebugHUD remains available as a dev fallback but is not the default HUD.
 }
 
 void ALProjectEncounterGameMode::BeginPlay()

@@ -114,6 +114,10 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UUserWidget> ActiveScreen;
 
+	/** In-fight HUD, shown only during the Encounter state (separate from the full-screen menu). */
+	UPROPERTY()
+	TObjectPtr<UUserWidget> RaidHUD;
+
 	FLProjectRunStats RunStats;
 	double EncounterStartTime = 0.0;
 	bool bBoundEnded = false;

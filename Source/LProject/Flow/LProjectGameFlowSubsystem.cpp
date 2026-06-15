@@ -12,6 +12,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "UI/LProjectRaidHUD.h"
 #include "UI/Screens/LProjectReadyWidget.h"
 #include "UI/Screens/LProjectResultWidget.h"
 #include "UI/Screens/LProjectTitleWidget.h"
@@ -109,6 +110,27 @@ void ULProjectGameFlowSubsystem::RequestState(ELProjectGameFlowState NewState)
 {
 	CurrentState = NewState;
 	ShowScreenForState(NewState);
+
+	// In-fight HUD lives only during the Encounter state.
+	if (NewState == ELProjectGameFlowState::Encounter)
+	{
+		if (!RaidHUD)
+		{
+			if (APlayerController* C = GetPC())
+			{
+				RaidHUD = CreateWidget<UUserWidget>(C, ULProjectRaidHUD::StaticClass());
+				if (RaidHUD)
+				{
+					RaidHUD->AddToViewport(10);
+				}
+			}
+		}
+	}
+	else if (RaidHUD)
+	{
+		RaidHUD->RemoveFromParent();
+		RaidHUD = nullptr;
+	}
 
 	switch (NewState)
 	{
