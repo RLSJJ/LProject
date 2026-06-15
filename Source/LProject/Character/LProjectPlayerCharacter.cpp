@@ -2,6 +2,8 @@
 
 #include "Character/LProjectPlayerCharacter.h"
 
+#include "AbilitySystem/Abilities/LProjectGA_BasicAttack.h"
+#include "AbilitySystem/Abilities/LProjectGA_Counter.h"
 #include "AbilitySystem/Abilities/LProjectGA_Dash.h"
 #include "AbilitySystem/LProjectAbilitySet.h"
 #include "AbilitySystem/LProjectAbilitySystemComponent.h"
@@ -223,10 +225,18 @@ void ALProjectPlayerCharacter::GrantAbilities()
 		return;
 	}
 
-	// Code default (no ability set assigned): grant the dash directly, tagged for input activation.
+	// Code default (no ability set assigned): grant the starter kit directly, tagged for input activation.
 	FGameplayAbilitySpec DashSpec(ULProjectGA_Dash::StaticClass(), 1, INDEX_NONE, this);
 	DashSpec.GetDynamicSpecSourceTags().AddTag(TAG_InputTag_Dash);
 	AbilitySystemComponent->GiveAbility(DashSpec);
+
+	FGameplayAbilitySpec BasicAttackSpec(ULProjectGA_BasicAttack::StaticClass(), 1, INDEX_NONE, this);
+	BasicAttackSpec.GetDynamicSpecSourceTags().AddTag(TAG_InputTag_BasicAttack);
+	AbilitySystemComponent->GiveAbility(BasicAttackSpec);
+
+	FGameplayAbilitySpec CounterSpec(ULProjectGA_Counter::StaticClass(), 1, INDEX_NONE, this);
+	CounterSpec.GetDynamicSpecSourceTags().AddTag(TAG_InputTag_Counter);
+	AbilitySystemComponent->GiveAbility(CounterSpec);
 }
 
 void ALProjectPlayerCharacter::EnsureDefaultPawnData()
@@ -236,16 +246,22 @@ void ALProjectPlayerCharacter::EnsureDefaultPawnData()
 		return;
 	}
 
-	// Input actions: move = a button (right mouse), dash = a button (space).
+	// Input actions: move = a button (right mouse), dash = a button (space), basic attack = left mouse.
 	UInputAction* MoveAction = NewObject<UInputAction>(this, TEXT("DefaultMoveAction"));
 	MoveAction->ValueType = EInputActionValueType::Boolean;
 	UInputAction* DashAction = NewObject<UInputAction>(this, TEXT("DefaultDashAction"));
 	DashAction->ValueType = EInputActionValueType::Boolean;
+	UInputAction* BasicAttackAction = NewObject<UInputAction>(this, TEXT("DefaultBasicAttackAction"));
+	BasicAttackAction->ValueType = EInputActionValueType::Boolean;
+	UInputAction* CounterAction = NewObject<UInputAction>(this, TEXT("DefaultCounterAction"));
+	CounterAction->ValueType = EInputActionValueType::Boolean;
 
-	// Mapping context: right mouse -> move-to-cursor, Space -> dash.
+	// Mapping context: right mouse -> move, Space -> dash, left mouse -> 평타, Q -> counter.
 	UInputMappingContext* IMC = NewObject<UInputMappingContext>(this, TEXT("DefaultMappingContext"));
 	IMC->MapKey(MoveAction, EKeys::RightMouseButton);
 	IMC->MapKey(DashAction, EKeys::SpaceBar);
+	IMC->MapKey(BasicAttackAction, EKeys::LeftMouseButton);
+	IMC->MapKey(CounterAction, EKeys::Q);
 
 	// Input config: action -> tag.
 	ULProjectInputConfig* InputConfig = NewObject<ULProjectInputConfig>(this, TEXT("DefaultInputConfig"));
@@ -258,6 +274,16 @@ void ALProjectPlayerCharacter::EnsureDefaultPawnData()
 	DashEntry.InputAction = DashAction;
 	DashEntry.InputTag = TAG_InputTag_Dash;
 	InputConfig->AbilityInputActions.Add(DashEntry);
+
+	FLProjectInputAction BasicAttackEntry;
+	BasicAttackEntry.InputAction = BasicAttackAction;
+	BasicAttackEntry.InputTag = TAG_InputTag_BasicAttack;
+	InputConfig->AbilityInputActions.Add(BasicAttackEntry);
+
+	FLProjectInputAction CounterEntry;
+	CounterEntry.InputAction = CounterAction;
+	CounterEntry.InputTag = TAG_InputTag_Counter;
+	InputConfig->AbilityInputActions.Add(CounterEntry);
 
 	// Bundle it. AbilitySet stays null -> GrantAbilities() uses the direct dash grant above.
 	PawnData = NewObject<ULProjectPawnData>(this, TEXT("DefaultPawnData"));

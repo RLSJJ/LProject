@@ -17,4 +17,10 @@ class LPROJECT_API ALProjectPlayerController : public APlayerController
 
 public:
 	ALProjectPlayerController();
+
+protected:
+	virtual void SetupInputComponent() override;
+
+	/** R key: ask the EncounterDirector to reset and restart the fight (test convenience). */
+	void HandleRetryPressed();
 };

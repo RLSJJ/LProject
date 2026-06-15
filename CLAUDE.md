@@ -10,12 +10,19 @@ solo balancing is natural). Multiplayer is intentionally out of scope; that budg
 raid-mechanic depth. Originally from the Blank template (hence the `TP_Blank` → `LProject` game-name
 redirects in `Config/DefaultEngine.ini`).
 
-**Current state — Phase 0-1 + Phase 1 done, build-verified.** GAS is enabled and a working foundation
-exists: a quarterview player character with Enhanced Input movement and a GAS dash ability (i-frames).
-`Content/` is still empty — input/mesh assets are a TODO in the editor (see *Gameplay architecture*).
-Roadmap: **Phase 2** boss core (multi-bar HP, stagger, data-driven patterns, telegraphs) → **Phase 3**
-raid systems (encounter director, stagger check, part-break, counter, wipe-gimmick framework) →
-**Phase 4** Behemoth encounter → **Phase 5** UI/HUD + polish.
+**Current state — boss base systems done, build-verified.** The full Lost Ark boss-fight base-system
+framework is in and compiles: combat attributes + a single SetByCaller/exec-calc **damage pipeline**,
+player **basic attack** (left-click 평타, box-overlap hit detection), a greybox **boss** (multi-bar HP,
+stagger→**groggy**/무력화 with 2× bonus damage, **part-break** weakness), a **telegraph→strike** system
+(debug-draw AoE shapes), a data-driven **pattern runner FSM** (Idle→Telegraph→Strike→Recovery), a
+**counter** window, **buff/debuff/DoT** GameplayEffects, an **EncounterDirector** world subsystem
+(phase gates, enrage DPS check, win/lose/retry), and an **AHUD debug HUD**. Everything is greybox
+(engine cubes + debug draws) and playable with **zero authored assets**. `Content/` is still empty —
+real meshes/materials/anims + tuned DataAssets are the production follow-up.
+
+Remaining roadmap: **Phase 4** the actual Behemoth encounter content (authored patterns, real phases,
+signature gimmicks) → **Phase 5** art pass (stylized meshes/VFX, real UMG HUD, telegraph materials) +
+polish + demo video.
 
 ## Directory layout gotcha
 
@@ -59,8 +66,11 @@ Engine is installed at `C:\Program Files\Epic Games\UE_5.7`. Use the engine's Ba
 
 - Single runtime module **`LProject`** (`Source/LProject/`), primary game module via
   `IMPLEMENT_PRIMARY_GAME_MODULE` in `LProject.cpp`. Source is organized into folders: `Core/`
-  (asset manager, game mode, native gameplay tags), `AbilitySystem/` (+ `Abilities/`, `Attributes/`),
-  `Character/`, `Player/`.
+  (asset manager, game modes, native gameplay tags, pawn data), `AbilitySystem/` (+ `Abilities/`,
+  `Attributes/`, `Calculations/` exec calcs, `Effects/` GEs), `Character/`, `Player/`, `Input/`,
+  `Combat/` (combatant interface), `Boss/` (boss character + pattern/part-break components + pattern
+  data), `Telegraph/` (AoE warning actor), `Encounter/` (director subsystem + encounter game mode),
+  `UI/` (AHUD debug HUD).
 - Two build targets: `LProject` (Game) and `LProjectEditor` (Editor), pinned to
   `BuildSettingsVersion.V6` and `EngineIncludeOrderVersion.Unreal5_7`.
 - Public deps in `LProject.Build.cs`: `Core`, `CoreUObject`, `Engine`, `InputCore`, `EnhancedInput`,
@@ -82,10 +92,11 @@ Combat is built on the **Gameplay Ability System**. Key classes (all prefixed `L
 - **`ULProjectAbilitySystemComponent`** (`AbilitySystem/`) — ASC subclass. `AbilityInputTagPressed(tag)`
   activates the granted ability whose spec carries that input tag (tag-driven input). Future home for
   raid-mechanic helpers.
-- **`ULProjectAttributeSet`** (`AbilitySystem/Attributes/`) — base attributes (`Health`, `MaxHealth`)
-  with full replication (`OnRep` + `DOREPLIFETIME_CONDITION_NOTIFY(... REPNOTIFY_Always)`) and clamping
-  in `PreAttributeChange`. Uses the standard `ATTRIBUTE_ACCESSORS` macro (defined in the header). Add
-  Stagger/resource/part-durability as separate `UAttributeSet` subclasses later.
+- **`ULProjectAttributeSet`** (`AbilitySystem/Attributes/`) — shared combat attributes: `Health`,
+  `MaxHealth`, `AttackPower`, `Defense` (all replicated), plus a transient **`Damage` meta-attribute**
+  (NOT replicated). `PostGameplayEffectExecute` turns incoming `Damage` into a `Health` subtraction and
+  tags the owner `State.Dead` at 0. Clamps in `PreAttributeChange`. `ATTRIBUTE_ACCESSORS` macro in the
+  header. **`ULProjectBossAttributeSet`** adds boss-only `StaggerCurrent`/`StaggerMax`.
 - **`ULProjectGameplayAbility`** (`AbilitySystem/Abilities/`) — ability base (`InstancedPerActor`,
   `LocalPredicted`).
 - **`ULProjectGA_Dash`** — first ability: `LaunchCharacter` along move/facing direction + i-frames via
@@ -113,10 +124,41 @@ Combat is built on the **Gameplay Ability System**. Key classes (all prefixed `L
   InputConfig. No character code changes.** Activation: input (InputTag) → `AbilityInputTagPressed` →
   the spec tagged with that InputTag activates.
 
-**To play:** works out of the box (code-default WASD + Space + cube mesh). Just ensure the play map uses
-`LProjectGameMode` (no GameMode override) and has a PlayerStart. **For production**, author real
-`IA_*`/`IMC_*` assets + an AbilitySet/PawnData and assign PawnData on a BP subclass — the code default
-is only a stopgap.
+**Combat & boss systems** — all routed through one GAS damage seam:
+- **Damage pipeline:** every attacker (player 평타, boss patterns, counter, DoT) builds a SetByCaller
+  `ULProjectGE_Damage` and applies it; `ULProjectExecCalc_Damage` (`AbilitySystem/Calculations/`) is the
+  one formula — `Base * AttackPower/100 * (1 - clamp(Defense/100, 0, .95))`, ×2 vs a groggy boss. It
+  outputs the `Damage` meta-attribute (HP) and a negative `StaggerCurrent` modifier (only if the target
+  has the boss set). GEs live in `AbilitySystem/Effects/` (`…GE_Damage`, `…GE_DamageOverTime`,
+  `…GE_AttackUp`, base `…GameplayEffect`).
+- **Player attacks:** `ULProjectGA_BasicAttack` (left mouse) box-overlaps Pawns in front (no custom
+  collision channel — `OverlapMultiByObjectType(ECC_Pawn)`), de-dupes, applies the damage GE.
+  `ULProjectGA_Counter` (Q) only lands while the boss has `State.Boss.Counterable`: it interrupts the
+  pattern, bursts stagger, applies a bleed DoT, self-buffs, and grants i-frames. Dash i-frames
+  (`State.Invulnerable`) make hits whiff — enforced in the runner/strike checks.
+- **Boss** (`Boss/LProjectBossCharacter`) — subclasses `ALProjectCharacterBase`; grants the boss
+  attribute set in code, faces the player each tick, exposes multi-bar-HP helpers, and runs
+  **groggy/무력화** (stagger→0 pauses the runner + 2× damage for `GroggyDuration`, then refills). Health
+  loss feeds **`ULProjectPartBreakComponent`** (per-part durability; a break permanently lowers Defense).
+- **Patterns** — `ULProjectBossPatternData` (`FLProjectBossAttackPattern` rows: shape, size, target mode,
+  timings, damage/stagger, counterable, weight, required phase tags) is run by
+  **`ULProjectBossPatternRunnerComponent`**, an Idle→Telegraph→Strike→Recovery FSM that spawns a
+  greybox **`ALProjectTelegraphActor`** (debug-draw circle/box/cone, fill animates to the strike) then
+  overlaps + applies damage. Falls back to built-in default patterns when no DataAsset is set.
+- **Encounter** — **`ULProjectEncounterDirector`** (`UTickableWorldSubsystem`) registers boss+player,
+  fires HP-gated phases (swaps the runner's active phase tags), runs the enrage DPS-check timer, and
+  resolves win/lose/retry (exposes `GetOutcome()`, delegates). **`ALProjectEncounterGameMode`** (subclass
+  of `ALProjectGameMode`, the `GlobalDefaultGameMode`) spawns the boss in front of the player on
+  BeginPlay, registers them, and starts the fight; sets `ALProjectDebugHUD` as the HUD.
+- **`ALProjectDebugHUD`** (`UI/`) — Canvas `DrawText`/`DrawRect` (no UMG/Slate deps): boss multi-bar HP,
+  stagger/groggy, counter prompt, broken parts, phase, enrage countdown, player HP, win/lose banner.
+
+**To play:** press Play — the **encounter game mode** (now `GlobalDefaultGameMode`) spawns a greybox boss
+in front of the player and starts the fight; everything works with **zero authored assets**. Controls:
+**RMB** move, **LMB** 평타, **Space** dash (i-frames), **Q** counter (during the cyan COUNTER! prompt),
+**R** retry. Swap `GlobalDefaultGameMode` back to `LProjectGameMode` for boss-free movement testing.
+**For production**, author real meshes/materials + tuned `UBossPatternData`/`PawnData`/phase DataAssets;
+the code defaults are a stopgap.
 
 ## Engine configuration that shapes the project
 
