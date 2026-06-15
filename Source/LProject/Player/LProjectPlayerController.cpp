@@ -3,8 +3,8 @@
 #include "Player/LProjectPlayerController.h"
 
 #include "Components/InputComponent.h"
-#include "Encounter/LProjectEncounterDirector.h"
-#include "Engine/World.h"
+#include "Engine/GameInstance.h"
+#include "Flow/LProjectGameFlowSubsystem.h"
 
 ALProjectPlayerController::ALProjectPlayerController()
 {
@@ -27,11 +27,12 @@ void ALProjectPlayerController::SetupInputComponent()
 
 void ALProjectPlayerController::HandleRetryPressed()
 {
-	if (UWorld* World = GetWorld())
+	// Route through the flow owner so dev (R key) and shipped (RETRY button) paths are identical.
+	if (UGameInstance* GI = GetGameInstance())
 	{
-		if (ULProjectEncounterDirector* Director = World->GetSubsystem<ULProjectEncounterDirector>())
+		if (ULProjectGameFlowSubsystem* Flow = GI->GetSubsystem<ULProjectGameFlowSubsystem>())
 		{
-			Director->RetryEncounter();
+			Flow->Retry();
 		}
 	}
 }

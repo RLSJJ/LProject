@@ -119,18 +119,7 @@ void ALProjectDebugHUD::DrawHUD()
 		const FLinearColor EnrageColor = Enrage < 30.0f ? FLinearColor::Red : White;
 		DrawText(FString::Printf(TEXT("Enrage: %02d:%02d"), Mins, Secs), EnrageColor, CW * 0.02f, CH * 0.10f, Font);
 
-		// Win/lose banner.
-		switch (Director->GetOutcome())
-		{
-		case ELProjectEncounterOutcome::Won:
-			DrawText(TEXT("VICTORY!"), FLinearColor(0.2f, 1.0f, 0.2f), CW * 0.5f - 80.0f, CH * 0.45f, Font, 3.0f);
-			break;
-		case ELProjectEncounterOutcome::Lost:
-			DrawText(TEXT("WIPED  -  press R to retry"), FLinearColor::Red, CW * 0.5f - 150.0f, CH * 0.45f, Font, 2.0f);
-			break;
-		default:
-			break;
-		}
+		// (Win/lose banner is owned by the flow's Result screen now, not the debug HUD.)
 	}
 
 	// --- Player HP (bottom left) ---

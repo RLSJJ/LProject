@@ -35,4 +35,8 @@ protected:
 	/** Distance in front of the player to spawn the boss. */
 	UPROPERTY(EditDefaultsOnly, Category = "Encounter")
 	float BossSpawnDistance = 1600.0f;
+
+	/** Dev fast-path: skip Title/Ready and drop straight into a live fight (also via cvar lp.SkipFrontEnd 1). */
+	UPROPERTY(EditDefaultsOnly, Category = "Encounter")
+	bool bAutoStartEncounter = false;
 };

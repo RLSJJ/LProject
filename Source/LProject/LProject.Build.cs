@@ -16,7 +16,9 @@ public class LProject : ModuleRules
 		{
 			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput",
 			// Gameplay Ability System (GameplayTags/GameplayTasks are built-in engine modules).
-			"GameplayAbilities", "GameplayTags", "GameplayTasks"
+			"GameplayAbilities", "GameplayTags", "GameplayTasks",
+			// UMG UI (title/HUD/result screens built as C++ UUserWidgets with PNG brushes).
+			"UMG", "Slate", "SlateCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });

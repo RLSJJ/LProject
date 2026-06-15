@@ -36,3 +36,14 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_InputTag_Move, "InputTag.Move");
 UE_DEFINE_GAMEPLAY_TAG(TAG_InputTag_Dash, "InputTag.Dash");
 UE_DEFINE_GAMEPLAY_TAG(TAG_InputTag_BasicAttack, "InputTag.BasicAttack");
 UE_DEFINE_GAMEPLAY_TAG(TAG_InputTag_Counter, "InputTag.Counter");
+UE_DEFINE_GAMEPLAY_TAG(TAG_InputTag_SkillQ, "InputTag.SkillQ");
+UE_DEFINE_GAMEPLAY_TAG(TAG_InputTag_SkillW, "InputTag.SkillW");
+UE_DEFINE_GAMEPLAY_TAG(TAG_InputTag_SkillE, "InputTag.SkillE");
+UE_DEFINE_GAMEPLAY_TAG(TAG_InputTag_SkillR, "InputTag.SkillR");
+
+// Cooldown tags
+UE_DEFINE_GAMEPLAY_TAG(TAG_Cooldown_Dash, "Cooldown.Dash");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Cooldown_Charge, "Cooldown.Charge");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Cooldown_Cleave, "Cooldown.Cleave");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Cooldown_Bolt, "Cooldown.Bolt");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Cooldown_Awakening, "Cooldown.Awakening");
