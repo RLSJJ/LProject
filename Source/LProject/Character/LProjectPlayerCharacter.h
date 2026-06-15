@@ -10,6 +10,8 @@
 class USpringArmComponent;
 class UCameraComponent;
 class UStaticMeshComponent;
+class USkeletalMesh;
+class UAnimSequence;
 class ULProjectPawnData;
 struct FInputActionValue;
 
@@ -77,4 +79,19 @@ protected:
 	FVector CachedDestination = FVector::ZeroVector;
 	float FollowTime = 0.0f;
 	bool bAutoRunToDestination = false;
+
+	// --- Test visual (real skeletal mesh + looping animation; replaces the dev cube) ---
+	UPROPERTY()
+	TObjectPtr<USkeletalMesh> VisualMesh;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> VisualAnim;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Visual")
+	float VisualTargetHeight = 180.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Visual")
+	float VisualMeshYaw = -90.0f;
+
+	void ApplyTestVisual();
 };

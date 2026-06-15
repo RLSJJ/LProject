@@ -6,6 +6,9 @@
 #include "AbilitySystem/Abilities/LProjectGA_Counter.h"
 #include "AbilitySystem/Abilities/LProjectGA_Dash.h"
 #include "AbilitySystem/LProjectAbilitySet.h"
+#include "Animation/AnimSequence.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "AbilitySystem/LProjectAbilitySystemComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -57,6 +60,20 @@ ALProjectPlayerCharacter::ALProjectPlayerCharacter()
 		DevVisualMesh->SetStaticMesh(CubeMesh.Object);
 	}
 
+	// Test visual: imported CesiumMan skeletal mesh + its walk animation (replaces the dev cube).
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> PlayerSkelMesh(
+	    TEXT("/Game/TestVisual/CesiumMan/CesiumMan/SkeletalMeshes/CesiumMan.CesiumMan"));
+	if (PlayerSkelMesh.Succeeded())
+	{
+		VisualMesh = PlayerSkelMesh.Object;
+	}
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> PlayerAnimSeq(
+	    TEXT("/Game/TestVisual/CesiumMan/CesiumMan/SkeletalMeshes/CesiumMan_Anim.CesiumMan_Anim"));
+	if (PlayerAnimSeq.Succeeded())
+	{
+		VisualAnim = PlayerAnimSeq.Object;
+	}
+
 	// Movement: face the movement direction; ignore controller rotation (camera is fixed).
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -96,10 +113,30 @@ void ALProjectPlayerCharacter::PossessedBy(AController* NewController)
 	GrantAbilities();
 }
 
+void ALProjectPlayerCharacter::ApplyTestVisual()
+{
+	if (!ConfigureTestVisualMesh(VisualMesh, VisualTargetHeight, FRotator(0.0f, VisualMeshYaw, 0.0f)))
+	{
+		return;
+	}
+
+	// Real mesh is in: hide the dev cube and loop the walk animation (single-node, no AnimBP needed).
+	if (DevVisualMesh)
+	{
+		DevVisualMesh->SetVisibility(false);
+	}
+	if (VisualAnim && GetMesh())
+	{
+		GetMesh()->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+		GetMesh()->PlayAnimation(VisualAnim, true);
+	}
+}
+
 void ALProjectPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	ApplyTestVisual();
 	EnsureDefaultPawnData();
 
 	if (const APlayerController* PC = Cast<APlayerController>(GetController()))

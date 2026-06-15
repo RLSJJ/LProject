@@ -10,6 +10,7 @@
 
 class ULProjectAbilitySystemComponent;
 class ULProjectAttributeSet;
+class USkeletalMesh;
 
 /**
  * Shared base for all GAS-driven characters (player avatar + raid boss).
@@ -53,6 +54,13 @@ protected:
 
 	/** Binds the ASC to this actor as both owner and avatar. Safe to call more than once. */
 	void InitAbilityActorInfo();
+
+	/**
+	 * Test-visual helper: puts a skeletal mesh on GetMesh(), auto-fitting its scale to TargetHeightCm
+	 * from the asset bounds (handles arbitrary glTF import scale) and aligning the feet to the capsule
+	 * bottom. Returns true if applied.
+	 */
+	bool ConfigureTestVisualMesh(USkeletalMesh* VisualMesh, float TargetHeightCm, const FRotator& MeshRotation);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities")
 	TObjectPtr<ULProjectAbilitySystemComponent> AbilitySystemComponent;

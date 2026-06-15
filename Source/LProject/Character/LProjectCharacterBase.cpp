@@ -4,6 +4,9 @@
 
 #include "AbilitySystem/LProjectAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/LProjectAttributeSet.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 
 ALProjectCharacterBase::ALProjectCharacterBase()
 {
@@ -56,4 +59,31 @@ void ALProjectCharacterBase::InitAbilityActorInfo()
 	{
 		AbilitySystemComponent->InitAbilityActorInfo(this, this);
 	}
+}
+
+bool ALProjectCharacterBase::ConfigureTestVisualMesh(USkeletalMesh* VisualMesh,
+    float TargetHeightCm,
+    const FRotator& MeshRotation)
+{
+	USkeletalMeshComponent* MeshComp = GetMesh();
+	if (!VisualMesh || !MeshComp)
+	{
+		return false;
+	}
+
+	MeshComp->SetSkeletalMesh(VisualMesh);
+
+	// Auto-fit: scale so the mesh's height matches TargetHeightCm (glTF imports come in at arbitrary
+	// scale), then drop it so its feet sit at the capsule bottom.
+	const FBoxSphereBounds Bounds = VisualMesh->GetBounds();
+	const float FullHeight = FMath::Max(Bounds.BoxExtent.Z * 2.0f, 1.0f);
+	const float FitScale = TargetHeightCm / FullHeight;
+	MeshComp->SetRelativeScale3D(FVector(FitScale));
+
+	const float CapsuleHalf = GetCapsuleComponent() ? GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 90.0f;
+	const float BottomLocalZ = Bounds.Origin.Z - Bounds.BoxExtent.Z;
+	MeshComp->SetRelativeLocation(FVector(0.0f, 0.0f, -CapsuleHalf - BottomLocalZ * FitScale));
+	MeshComp->SetRelativeRotation(MeshRotation);
+	MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	return true;
 }

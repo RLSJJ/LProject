@@ -7,6 +7,8 @@
 #include "LProjectBossCharacter.generated.h"
 
 class UStaticMeshComponent;
+class USkeletalMesh;
+class UAnimSequence;
 class ULProjectBossAttributeSet;
 class ULProjectBossPatternRunnerComponent;
 class ULProjectPartBreakComponent;
@@ -135,4 +137,29 @@ private:
 
 	bool bGroggy = false;
 	FTimerHandle GroggyTimerHandle;
+
+	// --- Test visual (giant Fox skeletal mesh + speed-driven anim; replaces the dev cube) ---
+	void ApplyTestVisual();
+	void UpdateLocomotionAnim();
+
+	UPROPERTY()
+	TObjectPtr<USkeletalMesh> VisualMesh;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> IdleAnim;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> WalkAnim;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> RunAnim;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Visual")
+	float VisualTargetHeight = 700.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Visual")
+	float VisualMeshYaw = -90.0f;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> CurrentAnim;
 };

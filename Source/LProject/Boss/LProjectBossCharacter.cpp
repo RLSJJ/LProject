@@ -5,11 +5,14 @@
 #include "AbilitySystem/Attributes/LProjectAttributeSet.h"
 #include "AbilitySystem/Attributes/LProjectBossAttributeSet.h"
 #include "AbilitySystemComponent.h"
+#include "Animation/AnimSequence.h"
 #include "Boss/LProjectBossPatternRunnerComponent.h"
 #include "Boss/LProjectPartBreakComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LProjectGameplayTags.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -37,6 +40,32 @@ ALProjectBossCharacter::ALProjectBossCharacter()
 		DevVisualMesh->SetStaticMesh(CubeMesh.Object);
 	}
 
+	// Test visual: imported Fox skeletal mesh, scaled up to a beast, with Survey/Walk/Run animations.
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> FoxMesh(
+	    TEXT("/Game/TestVisual/Fox/Fox/SkeletalMeshes/Fox.Fox"));
+	if (FoxMesh.Succeeded())
+	{
+		VisualMesh = FoxMesh.Object;
+	}
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FoxIdle(
+	    TEXT("/Game/TestVisual/Fox/Fox/SkeletalMeshes/FoxSurvey.FoxSurvey"));
+	if (FoxIdle.Succeeded())
+	{
+		IdleAnim = FoxIdle.Object;
+	}
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FoxWalk(
+	    TEXT("/Game/TestVisual/Fox/Fox/SkeletalMeshes/FoxWalk.FoxWalk"));
+	if (FoxWalk.Succeeded())
+	{
+		WalkAnim = FoxWalk.Object;
+	}
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FoxRun(
+	    TEXT("/Game/TestVisual/Fox/Fox/SkeletalMeshes/FoxRun.FoxRun"));
+	if (FoxRun.Succeeded())
+	{
+		RunAnim = FoxRun.Object;
+	}
+
 	// Drives all boss attacks (telegraph -> strike) through the shared GAS pipeline.
 	PatternRunner = CreateDefaultSubobject<ULProjectBossPatternRunnerComponent>(TEXT("PatternRunner"));
 
@@ -57,9 +86,58 @@ void ALProjectBossCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	ApplyTestVisual();
+
 	if (HasAuthority())
 	{
 		GrantBossKit();
+	}
+}
+
+void ALProjectBossCharacter::ApplyTestVisual()
+{
+	if (!ConfigureTestVisualMesh(VisualMesh, VisualTargetHeight, FRotator(0.0f, VisualMeshYaw, 0.0f)))
+	{
+		return;
+	}
+
+	if (DevVisualMesh)
+	{
+		DevVisualMesh->SetVisibility(false);
+	}
+	if (GetMesh())
+	{
+		GetMesh()->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+		CurrentAnim = IdleAnim;
+		if (CurrentAnim)
+		{
+			GetMesh()->PlayAnimation(CurrentAnim, true);
+		}
+	}
+}
+
+void ALProjectBossCharacter::UpdateLocomotionAnim()
+{
+	if (!GetMesh())
+	{
+		return;
+	}
+
+	const float Speed = GetVelocity().Size2D();
+	UAnimSequence* Desired = IdleAnim;
+	if (Speed > 300.0f && RunAnim)
+	{
+		Desired = RunAnim;
+	}
+	else if (Speed > 10.0f && WalkAnim)
+	{
+		Desired = WalkAnim;
+	}
+
+	if (Desired && Desired != CurrentAnim)
+	{
+		CurrentAnim = Desired;
+		GetMesh()->PlayAnimation(Desired, true);
 	}
 }
 
@@ -176,6 +254,8 @@ float ALProjectBossCharacter::GetMaxHealthPerBar() const
 void ALProjectBossCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	UpdateLocomotionAnim();
 
 	// Face the player (yaw only); stop once dead.
 	if (!IsAlive())
