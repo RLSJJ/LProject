@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "GameplayTagContainer.h"
 #include "LProjectRaidHUD.generated.h"
 
 class UImage;
@@ -11,6 +12,24 @@ class UTextBlock;
 class UProgressBar;
 class UHorizontalBox;
 class ULProjectEncounterDirector;
+class UAbilitySystemComponent;
+
+/** One slot on the skill bar (icon + cooldown darken overlay + remaining-seconds text). */
+USTRUCT()
+struct FLProjectSkillSlot
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TObjectPtr<UImage> Icon = nullptr;
+	UPROPERTY()
+	TObjectPtr<UImage> CooldownDark = nullptr;
+	UPROPERTY()
+	TObjectPtr<UTextBlock> CooldownText = nullptr;
+
+	FGameplayTag CooldownTag;
+	bool bAwakening = false;
+};
 
 /**
  * In-fight raid HUD, built in C++ over the PNG-brush UI style (no WBP). Polls the EncounterDirector +
@@ -59,6 +78,19 @@ protected:
 	TObjectPtr<UProgressBar> PlayerHealthBar;
 	UPROPERTY()
 	TObjectPtr<UTextBlock> PlayerHealthText;
+	UPROPERTY()
+	TObjectPtr<UProgressBar> IdentityBar;
+
+	// Skill bar.
+	UPROPERTY()
+	TArray<FLProjectSkillSlot> SkillSlots;
+
+	void AddSkillSlot(UHorizontalBox* Row,
+	    const TCHAR* IconTex,
+	    const FString& KeyLabel,
+	    FGameplayTag CooldownTag,
+	    bool bAwakening);
+	UAbilitySystemComponent* PlayerASC() const;
 
 	// Center counter prompt.
 	UPROPERTY()

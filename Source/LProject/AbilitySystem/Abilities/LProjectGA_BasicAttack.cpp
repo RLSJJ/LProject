@@ -2,6 +2,7 @@
 
 #include "AbilitySystem/Abilities/LProjectGA_BasicAttack.h"
 
+#include "AbilitySystem/Attributes/LProjectAttributeSet.h"
 #include "AbilitySystem/Effects/LProjectGE_Damage.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
@@ -79,6 +80,15 @@ void ULProjectGA_BasicAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 			{
 				SourceASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data, TargetASC);
 			}
+		}
+
+		// Basic attack is the Identity engine: each hit builds the awakening resource.
+		if (AlreadyHit.Num() > 0)
+		{
+			const float Cur = SourceASC->GetNumericAttribute(ULProjectAttributeSet::GetIdentityAttribute());
+			const float Max = SourceASC->GetNumericAttribute(ULProjectAttributeSet::GetIdentityMaxAttribute());
+			SourceASC->SetNumericAttributeBase(ULProjectAttributeSet::GetIdentityAttribute(),
+			    FMath::Clamp(Cur + IdentityPerHit * AlreadyHit.Num(), 0.0f, Max));
 		}
 	}
 

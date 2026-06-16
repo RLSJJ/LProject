@@ -65,6 +65,15 @@ public:
 	FGameplayAttributeData Damage;
 	ATTRIBUTE_ACCESSORS(ULProjectAttributeSet, Damage);
 
+	/** Identity / awakening resource (player): built by attacks/skills, spent by the Awakening burst. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Identity, Category = "Identity")
+	FGameplayAttributeData Identity;
+	ATTRIBUTE_ACCESSORS(ULProjectAttributeSet, Identity);
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_IdentityMax, Category = "Identity")
+	FGameplayAttributeData IdentityMax;
+	ATTRIBUTE_ACCESSORS(ULProjectAttributeSet, IdentityMax);
+
 protected:
 	UFUNCTION()
 	void OnRep_Health(const FGameplayAttributeData& OldValue);
@@ -77,4 +86,10 @@ protected:
 
 	UFUNCTION()
 	void OnRep_Defense(const FGameplayAttributeData& OldValue);
+
+	UFUNCTION()
+	void OnRep_Identity(const FGameplayAttributeData& OldValue);
+
+	UFUNCTION()
+	void OnRep_IdentityMax(const FGameplayAttributeData& OldValue);
 };

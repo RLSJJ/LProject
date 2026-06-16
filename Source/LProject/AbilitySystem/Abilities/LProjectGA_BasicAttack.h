@@ -44,6 +44,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "BasicAttack")
 	float StaggerDamage = 60.0f;
 
+	/** Identity built per enemy hit (basic attack is the awakening-resource engine). */
+	UPROPERTY(EditDefaultsOnly, Category = "BasicAttack")
+	float IdentityPerHit = 250.0f;
+
 	/** Damage effect to apply (defaults to ULProjectGE_Damage). */
 	UPROPERTY(EditDefaultsOnly, Category = "BasicAttack")
 	TSubclassOf<UGameplayEffect> DamageEffect;

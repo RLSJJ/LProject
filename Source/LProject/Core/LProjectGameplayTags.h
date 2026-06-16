@@ -28,6 +28,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_Boss_PartBroken);
 // --- SetByCaller magnitude keys (assigned on a damage GE spec at runtime) ---------------------------
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_SetByCaller_Damage);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_SetByCaller_StaggerDamage);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_SetByCaller_CooldownDuration);
 
 // --- Damage types ----------------------------------------------------------------------------------
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Damage_Type_Physical);

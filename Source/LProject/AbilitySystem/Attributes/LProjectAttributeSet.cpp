@@ -12,6 +12,8 @@ ULProjectAttributeSet::ULProjectAttributeSet()
 	InitHealth(100.0f);
 	InitAttackPower(100.0f);
 	InitDefense(0.0f);
+	InitIdentityMax(10000.0f);
+	InitIdentity(0.0f);
 }
 
 void ULProjectAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -23,6 +25,8 @@ void ULProjectAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	DOREPLIFETIME_CONDITION_NOTIFY(ULProjectAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULProjectAttributeSet, AttackPower, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULProjectAttributeSet, Defense, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULProjectAttributeSet, Identity, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULProjectAttributeSet, IdentityMax, COND_None, REPNOTIFY_Always);
 	// NOTE: Damage is a transient meta-attribute and is intentionally NOT replicated.
 }
 
@@ -41,6 +45,14 @@ void ULProjectAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribu
 	else if (Attribute == GetAttackPowerAttribute() || Attribute == GetDefenseAttribute())
 	{
 		NewValue = FMath::Max(NewValue, 0.0f);
+	}
+	else if (Attribute == GetIdentityAttribute())
+	{
+		NewValue = FMath::Clamp(NewValue, 0.0f, GetIdentityMax());
+	}
+	else if (Attribute == GetIdentityMaxAttribute())
+	{
+		NewValue = FMath::Max(NewValue, 1.0f);
 	}
 }
 
@@ -95,4 +107,14 @@ void ULProjectAttributeSet::OnRep_AttackPower(const FGameplayAttributeData& OldV
 void ULProjectAttributeSet::OnRep_Defense(const FGameplayAttributeData& OldValue)
 {
 	GAMEPLAYATTRIBUTE_REPNOTIFY(ULProjectAttributeSet, Defense, OldValue);
+}
+
+void ULProjectAttributeSet::OnRep_Identity(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(ULProjectAttributeSet, Identity, OldValue);
+}
+
+void ULProjectAttributeSet::OnRep_IdentityMax(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(ULProjectAttributeSet, IdentityMax, OldValue);
 }

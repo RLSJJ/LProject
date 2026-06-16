@@ -5,6 +5,7 @@
 #include "AbilitySystem/Abilities/LProjectGA_BasicAttack.h"
 #include "AbilitySystem/Abilities/LProjectGA_Counter.h"
 #include "AbilitySystem/Abilities/LProjectGA_Dash.h"
+#include "AbilitySystem/Abilities/LProjectSkills.h"
 #include "AbilitySystem/LProjectAbilitySet.h"
 #include "Animation/AnimSequence.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -274,6 +275,18 @@ void ALProjectPlayerCharacter::GrantAbilities()
 	FGameplayAbilitySpec CounterSpec(ULProjectGA_Counter::StaticClass(), 1, INDEX_NONE, this);
 	CounterSpec.GetDynamicSpecSourceTags().AddTag(TAG_InputTag_Counter);
 	AbilitySystemComponent->GiveAbility(CounterSpec);
+
+	// QWER skill kit.
+	auto GrantSkill = [this](TSubclassOf<ULProjectGameplayAbility> Ability, const FGameplayTag& InputTag)
+	{
+		FGameplayAbilitySpec Spec(Ability, 1, INDEX_NONE, this);
+		Spec.GetDynamicSpecSourceTags().AddTag(InputTag);
+		AbilitySystemComponent->GiveAbility(Spec);
+	};
+	GrantSkill(ULProjectGA_Charge::StaticClass(), TAG_InputTag_SkillQ);
+	GrantSkill(ULProjectGA_Cleave::StaticClass(), TAG_InputTag_SkillW);
+	GrantSkill(ULProjectGA_Bolt::StaticClass(), TAG_InputTag_SkillE);
+	GrantSkill(ULProjectGA_Awakening::StaticClass(), TAG_InputTag_SkillR);
 }
 
 void ALProjectPlayerCharacter::EnsureDefaultPawnData()
@@ -293,12 +306,27 @@ void ALProjectPlayerCharacter::EnsureDefaultPawnData()
 	UInputAction* CounterAction = NewObject<UInputAction>(this, TEXT("DefaultCounterAction"));
 	CounterAction->ValueType = EInputActionValueType::Boolean;
 
-	// Mapping context: right mouse -> move, Space -> dash, left mouse -> 평타, Q -> counter.
+	auto MakeButton = [this](const TCHAR* Name)
+	{
+		UInputAction* A = NewObject<UInputAction>(this, Name);
+		A->ValueType = EInputActionValueType::Boolean;
+		return A;
+	};
+	UInputAction* SkillQAction = MakeButton(TEXT("DefaultSkillQAction"));
+	UInputAction* SkillWAction = MakeButton(TEXT("DefaultSkillWAction"));
+	UInputAction* SkillEAction = MakeButton(TEXT("DefaultSkillEAction"));
+	UInputAction* SkillRAction = MakeButton(TEXT("DefaultSkillRAction"));
+
+	// Mapping context: RMB move, Space dash, LMB 평타, F counter, Q/W/E/R skills.
 	UInputMappingContext* IMC = NewObject<UInputMappingContext>(this, TEXT("DefaultMappingContext"));
 	IMC->MapKey(MoveAction, EKeys::RightMouseButton);
 	IMC->MapKey(DashAction, EKeys::SpaceBar);
 	IMC->MapKey(BasicAttackAction, EKeys::LeftMouseButton);
-	IMC->MapKey(CounterAction, EKeys::Q);
+	IMC->MapKey(CounterAction, EKeys::F);
+	IMC->MapKey(SkillQAction, EKeys::Q);
+	IMC->MapKey(SkillWAction, EKeys::W);
+	IMC->MapKey(SkillEAction, EKeys::E);
+	IMC->MapKey(SkillRAction, EKeys::R);
 
 	// Input config: action -> tag.
 	ULProjectInputConfig* InputConfig = NewObject<ULProjectInputConfig>(this, TEXT("DefaultInputConfig"));
@@ -321,6 +349,18 @@ void ALProjectPlayerCharacter::EnsureDefaultPawnData()
 	CounterEntry.InputAction = CounterAction;
 	CounterEntry.InputTag = TAG_InputTag_Counter;
 	InputConfig->AbilityInputActions.Add(CounterEntry);
+
+	auto AddAbilityInput = [&](UInputAction* Action, const FGameplayTag& Tag)
+	{
+		FLProjectInputAction Entry;
+		Entry.InputAction = Action;
+		Entry.InputTag = Tag;
+		InputConfig->AbilityInputActions.Add(Entry);
+	};
+	AddAbilityInput(SkillQAction, TAG_InputTag_SkillQ);
+	AddAbilityInput(SkillWAction, TAG_InputTag_SkillW);
+	AddAbilityInput(SkillEAction, TAG_InputTag_SkillE);
+	AddAbilityInput(SkillRAction, TAG_InputTag_SkillR);
 
 	// Bundle it. AbilitySet stays null -> GrantAbilities() uses the direct dash grant above.
 	PawnData = NewObject<ULProjectPawnData>(this, TEXT("DefaultPawnData"));
