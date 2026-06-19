@@ -75,6 +75,15 @@ public:
 	virtual void NotifyCountered() override;
 	//~ End ILProjectCombatant
 
+	/** Dramatic phase change: the boss roars (rears up), goes briefly untargetable, and pauses its
+	 *  attacks before escalating — a real phase-transition "moment", not just a HUD label flip. */
+	void EnterPhaseTransition(float Duration);
+
+	bool IsInPhaseTransition() const
+	{
+		return bPhaseTransition;
+	}
+
 	/** Broadcast when the groggy window opens / closes (HUD + runner pause hooks). */
 	UPROPERTY(BlueprintAssignable, Category = "Boss")
 	FLProjectBossSimpleEvent OnGroggyStart;
@@ -158,6 +167,10 @@ private:
 
 	bool bGroggy = false;
 	FTimerHandle GroggyTimerHandle;
+
+	void ExitPhaseTransition();
+	bool bPhaseTransition = false;
+	FTimerHandle PhaseTransitionTimerHandle;
 
 	// --- Test visual (giant Fox skeletal mesh + speed-driven anim; replaces the dev cube) ---
 	void ApplyTestVisual();

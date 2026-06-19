@@ -181,7 +181,26 @@ void ALProjectBossCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 	const float DamageTaken = Data.OldValue - Data.NewValue;
 	if (DamageTaken > 0.0f && PartBreak)
 	{
-		PartBreak->ApplyDamageToPrimaryPart(DamageTaken);
+		// Route to the part facing the attacker (single-player: the player) so where you hit FROM matters.
+		FName PartId(TEXT("Core"));
+		if (const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0))
+		{
+			FVector ToPlayer = PlayerPawn->GetActorLocation() - GetActorLocation();
+			ToPlayer.Z = 0.0f;
+			if (!ToPlayer.IsNearlyZero())
+			{
+				const float Dot = FVector::DotProduct(ToPlayer.GetSafeNormal(), GetActorForwardVector());
+				if (Dot > 0.5f)
+				{
+					PartId = FName(TEXT("Head")); // attacked from the front
+				}
+				else if (Dot < -0.5f)
+				{
+					PartId = FName(TEXT("Tail")); // attacked from behind
+				}
+			}
+		}
+		PartBreak->ApplyPartDamage(PartId, DamageTaken);
 	}
 
 	// Death edge: tear down any in-flight pattern + groggy timer so nothing outlives the corpse
@@ -277,6 +296,48 @@ void ALProjectBossCharacter::NotifyCountered()
 	}
 }
 
+void ALProjectBossCharacter::EnterPhaseTransition(float Duration)
+{
+	if (bPhaseTransition || !IsAlive())
+	{
+		return;
+	}
+	bPhaseTransition = true;
+
+	// Untargetable + stop attacking for the roar.
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		ASC->AddLooseGameplayTag(TAG_State_Invulnerable);
+	}
+	if (PatternRunner)
+	{
+		PatternRunner->InterruptCurrentPattern();
+		PatternRunner->SetPaused(true);
+	}
+
+	GetWorldTimerManager().SetTimer(PhaseTransitionTimerHandle,
+	    this,
+	    &ALProjectBossCharacter::ExitPhaseTransition,
+	    FMath::Max(Duration, 0.1f),
+	    false);
+}
+
+void ALProjectBossCharacter::ExitPhaseTransition()
+{
+	bPhaseTransition = false;
+	GetWorldTimerManager().ClearTimer(PhaseTransitionTimerHandle);
+
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		ASC->RemoveLooseGameplayTag(TAG_State_Invulnerable);
+	}
+	// Don't resume a dead/groggy boss.
+	if (IsAlive() && !bGroggy && PatternRunner)
+	{
+		PatternRunner->SetPaused(false);
+	}
+}
+
 float ALProjectBossCharacter::GetMaxHealthPerBar() const
 {
 	return GetMaxHealth() / static_cast<float>(GetHealthBarCount());
@@ -322,10 +383,16 @@ void ALProjectBossCharacter::UpdateAttackTell(float DeltaSeconds)
 		bMeshBaseCaptured = true;
 	}
 
-	// Target offset: rise with the telegraph, slam down on the strike, neutral otherwise.
+	// Target offset: roar (big rear-up) on a phase transition; otherwise rise with the telegraph and slam
+	// down on the strike, neutral when free.
 	float TargetOffset = 0.0f;
 	float InterpSpeed = 7.0f;
-	if (PatternRunner && !bGroggy && IsAlive())
+	if (bPhaseTransition)
+	{
+		TargetOffset = WindupRiseHeight * 1.4f; // dramatic rear-up roar
+		InterpSpeed = 6.0f;
+	}
+	else if (PatternRunner && !bGroggy && IsAlive())
 	{
 		if (PatternRunner->IsTelegraphing())
 		{

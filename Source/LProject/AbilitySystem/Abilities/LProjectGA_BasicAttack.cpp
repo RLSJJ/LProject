@@ -81,6 +81,10 @@ void ULProjectGA_BasicAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 			if (UAbilitySystemComponent* TargetASC =
 			        UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(HitActor))
 			{
+				if (TargetASC->HasMatchingGameplayTag(TAG_State_Invulnerable))
+				{
+					continue; // respect i-frames / untargetable (consistent with skills + boss strikes)
+				}
 				SourceASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data, TargetASC);
 			}
 		}

@@ -20,11 +20,19 @@ void ULProjectPartBreakComponent::BeginPlay()
 
 	if (Parts.Num() == 0)
 	{
-		FLProjectBossPart Core;
-		Core.PartId = FName(TEXT("Core"));
-		Core.MaxDurability = 6000.0f;
-		Core.DefenseReductionOnBreak = 20.0f;
-		Parts.Add(Core);
+		// Positional weak points: the boss routes incoming damage to the part facing the attacker, so
+		// WHERE you hit from matters (front Head / rear Tail / side Core). Breaking each weakens Defense.
+		auto MakePart = [](const TCHAR* Id, float Dur, float DefDown)
+		{
+			FLProjectBossPart P;
+			P.PartId = FName(Id);
+			P.MaxDurability = Dur;
+			P.DefenseReductionOnBreak = DefDown;
+			return P;
+		};
+		Parts.Add(MakePart(TEXT("Head"), 5000.0f, 18.0f));
+		Parts.Add(MakePart(TEXT("Core"), 8000.0f, 14.0f));
+		Parts.Add(MakePart(TEXT("Tail"), 4000.0f, 22.0f));
 	}
 
 	for (FLProjectBossPart& Part : Parts)

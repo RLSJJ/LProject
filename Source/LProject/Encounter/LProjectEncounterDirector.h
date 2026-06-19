@@ -149,6 +149,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Encounter")
 	float SoftEnrageSeconds = 45.0f;
 
+	/** Duration of the untargetable roar when crossing into a new phase. */
+	UPROPERTY(EditDefaultsOnly, Category = "Encounter")
+	float PhaseTransitionDuration = 1.6f;
+
 	/** Buff applied to the boss on soft-enrage (defaults to ULProjectGE_AttackUp). */
 	UPROPERTY(EditDefaultsOnly, Category = "Encounter")
 	TSubclassOf<class UGameplayEffect> EnrageBuffEffect;

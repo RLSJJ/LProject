@@ -188,6 +188,12 @@ void ULProjectEncounterDirector::EnterPhase(int32 PhaseIndex)
 				Runner->SetPatternData(Phase.PhasePatterns);
 			}
 		}
+
+		// Crossing INTO a new phase (not the initial phase 0) plays a dramatic untargetable roar.
+		if (PhaseIndex > 0)
+		{
+			B->EnterPhaseTransition(PhaseTransitionDuration);
+		}
 	}
 
 	OnPhaseChanged.Broadcast(ActivePhaseTag);
