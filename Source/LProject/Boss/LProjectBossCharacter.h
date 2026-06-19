@@ -163,6 +163,22 @@ private:
 	void ApplyTestVisual();
 	void UpdateLocomotionAnim();
 
+	/**
+	 * Procedural attack "tell" (no authored montages): the body rears UP as the telegraph builds, then
+	 * SLAMS down on the strike, so the player can read the wind-up off the boss itself — not just the
+	 * ground decal. Applied as a vertical offset on the mesh (orientation-independent, doesn't fight the
+	 * scale-based hit-react). Driven each tick from the pattern runner's telegraph/strike state.
+	 */
+	void UpdateAttackTell(float DeltaSeconds);
+
+	/** Peak rear-up height (cm) at full telegraph. */
+	UPROPERTY(EditDefaultsOnly, Category = "Boss")
+	float WindupRiseHeight = 80.0f;
+
+	float MeshBaseRelZ = 0.0f;
+	bool bMeshBaseCaptured = false;
+	float CurrentTellOffsetZ = 0.0f;
+
 	UPROPERTY()
 	TObjectPtr<USkeletalMesh> VisualMesh;
 

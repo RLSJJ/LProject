@@ -5,6 +5,8 @@
 #include "AbilitySystem/Effects/LProjectGE_IdentityGain.h"
 #include "AbilitySystemComponent.h"
 #include "Core/LProjectGameplayTags.h"
+#include "Feedback/LProjectHitReactComponent.h"
+#include "GameFramework/Actor.h"
 
 ULProjectGameplayAbility::ULProjectGameplayAbility()
 {
@@ -35,5 +37,16 @@ void ULProjectGameplayAbility::ApplyIdentityDelta(float Delta)
 	{
 		Spec.Data->SetSetByCallerMagnitude(TAG_SetByCaller_Identity, Delta);
 		ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data);
+	}
+}
+
+void ULProjectGameplayAbility::PlaySelfAttackMotion(float Intensity)
+{
+	if (const AActor* Avatar = GetAvatarActorFromActorInfo())
+	{
+		if (ULProjectHitReactComponent* HitReact = Avatar->FindComponentByClass<ULProjectHitReactComponent>())
+		{
+			HitReact->PlayHitReact(Intensity);
+		}
 	}
 }

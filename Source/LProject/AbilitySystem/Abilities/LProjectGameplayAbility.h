@@ -24,6 +24,9 @@ protected:
 	/** Apply an Identity delta (+build / -spend) via GE_IdentityGain — clamped to [0, IdentityMax]. */
 	void ApplyIdentityDelta(float Delta);
 
+	/** Pop the avatar's hit-react (a swing/attack body motion) so the player's own attacks have weight. */
+	void PlaySelfAttackMotion(float Intensity);
+
 	/** Identity-resource effect (defaults to ULProjectGE_IdentityGain). */
 	UPROPERTY(EditDefaultsOnly, Category = "Identity")
 	TSubclassOf<UGameplayEffect> IdentityGainEffect;

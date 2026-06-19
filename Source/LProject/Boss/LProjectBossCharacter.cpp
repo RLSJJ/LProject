@@ -306,6 +306,45 @@ void ALProjectBossCharacter::Tick(float DeltaSeconds)
 
 	UpdateMovement();
 	UpdateLocomotionAnim();
+	UpdateAttackTell(DeltaSeconds);
+}
+
+void ALProjectBossCharacter::UpdateAttackTell(float DeltaSeconds)
+{
+	USkeletalMeshComponent* MeshComp = GetMesh();
+	if (!MeshComp)
+	{
+		return;
+	}
+	if (!bMeshBaseCaptured)
+	{
+		MeshBaseRelZ = MeshComp->GetRelativeLocation().Z;
+		bMeshBaseCaptured = true;
+	}
+
+	// Target offset: rise with the telegraph, slam down on the strike, neutral otherwise.
+	float TargetOffset = 0.0f;
+	float InterpSpeed = 7.0f;
+	if (PatternRunner && !bGroggy && IsAlive())
+	{
+		if (PatternRunner->IsTelegraphing())
+		{
+			const float A = PatternRunner->GetTelegraphAlpha();
+			TargetOffset = WindupRiseHeight * FMath::InterpEaseIn(0.0f, 1.0f, A, 2.2f);
+			InterpSpeed = 9.0f;
+		}
+		else if (PatternRunner->IsStriking())
+		{
+			TargetOffset = -18.0f; // slammed into the ground
+			InterpSpeed = 28.0f;   // snap fast
+		}
+	}
+
+	CurrentTellOffsetZ = FMath::FInterpTo(CurrentTellOffsetZ, TargetOffset, DeltaSeconds, InterpSpeed);
+
+	FVector RelLoc = MeshComp->GetRelativeLocation();
+	RelLoc.Z = MeshBaseRelZ + CurrentTellOffsetZ;
+	MeshComp->SetRelativeLocation(RelLoc);
 }
 
 void ALProjectBossCharacter::UpdateMovement()

@@ -75,6 +75,27 @@ public:
 		return State != ELProjectBossRunnerState::Idle;
 	}
 
+	bool IsTelegraphing() const
+	{
+		return State == ELProjectBossRunnerState::Telegraph;
+	}
+
+	bool IsStriking() const
+	{
+		return State == ELProjectBossRunnerState::Strike;
+	}
+
+	/** 0..1 progress through the current telegraph (for body windup animation). 0 outside Telegraph. */
+	float GetTelegraphAlpha() const
+	{
+		if (State != ELProjectBossRunnerState::Telegraph || !bHasCurrent)
+		{
+			return 0.0f;
+		}
+		const float Dur = FMath::Max(CurrentPattern.TelegraphDuration * CadenceScale, KINDA_SMALL_NUMBER);
+		return FMath::Clamp(PhaseTimer / Dur, 0.0f, 1.0f);
+	}
+
 	UPROPERTY(BlueprintAssignable, Category = "Boss")
 	FLProjectCounterWindowEvent OnCounterWindowChanged;
 

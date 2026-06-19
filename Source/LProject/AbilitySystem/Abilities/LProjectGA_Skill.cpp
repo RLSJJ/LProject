@@ -67,6 +67,9 @@ int32 ULProjectGA_Skill::ApplyShapeDamage(const FVector& Center,
 		return 0;
 	}
 
+	// Body motion: a swing pop so the skill reads on the player's body (no authored montage needed).
+	PlaySelfAttackMotion(1.1f);
+
 	if (bDrawDebug)
 	{
 		DrawDebugSphere(World, Center, FMath::Max(Shape.GetSphereRadius(), 80.0f), 16, FColor::Yellow, false, 0.5f);

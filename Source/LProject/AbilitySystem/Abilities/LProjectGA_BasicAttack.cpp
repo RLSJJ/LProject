@@ -40,6 +40,9 @@ void ULProjectGA_BasicAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 		return;
 	}
 
+	// Body motion: a light swing pop so the player's own attack reads on their body.
+	PlaySelfAttackMotion(0.8f);
+
 	// Box in front of the avatar, oriented to its facing.
 	const FQuat Rotation = Avatar->GetActorQuat();
 	const FVector Center = Avatar->GetActorLocation() + Avatar->GetActorForwardVector() * Range;
