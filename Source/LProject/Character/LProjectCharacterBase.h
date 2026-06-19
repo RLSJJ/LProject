@@ -10,6 +10,7 @@
 
 class ULProjectAbilitySystemComponent;
 class ULProjectAttributeSet;
+class ULProjectHitReactComponent;
 class USkeletalMesh;
 
 /**
@@ -67,4 +68,8 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities")
 	TObjectPtr<ULProjectAttributeSet> AttributeSet;
+
+	/** Asset-free hit reaction (mesh squash); driven by the CombatFeedback subsystem. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Feedback")
+	TObjectPtr<ULProjectHitReactComponent> HitReact;
 };

@@ -6,6 +6,7 @@
 #include "Engine/World.h"
 #include "Feedback/LProjectCameraShake_Hit.h"
 #include "Feedback/LProjectDamageNumberActor.h"
+#include "Feedback/LProjectHitReactComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 void ULProjectCombatFeedbackSubsystem::Tick(float DeltaTime)
@@ -42,6 +43,12 @@ void ULProjectCombatFeedbackSubsystem::ReportHit(AActor* TargetActor, float Dama
 	const float UpOffset = bTargetIsBoss ? 320.0f : 130.0f;
 	const FVector SpawnLoc = TargetActor->GetActorLocation() + FVector(0.0f, 0.0f, UpOffset);
 	SpawnDamageNumber(SpawnLoc, Damage, bTargetIsBoss, bGroggy);
+
+	// Visible flinch on the body that got hit.
+	if (ULProjectHitReactComponent* HitReact = TargetActor->FindComponentByClass<ULProjectHitReactComponent>())
+	{
+		HitReact->PlayHitReact(bHeavy ? 1.6f : 0.9f);
+	}
 
 	// Camera shake, scaled by how big the hit was (the player's camera always feels it).
 	const float ShakeScale = FMath::Clamp(Damage / 45.0f, 0.35f, 3.0f) * (bGroggy ? 1.5f : 1.0f);

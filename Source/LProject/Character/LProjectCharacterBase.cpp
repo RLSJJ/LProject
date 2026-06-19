@@ -7,6 +7,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
+#include "Feedback/LProjectHitReactComponent.h"
 
 ALProjectCharacterBase::ALProjectCharacterBase()
 {
@@ -19,6 +20,9 @@ ALProjectCharacterBase::ALProjectCharacterBase()
 
 	// Created as a subobject of the ASC owner -> auto-registered with the ASC at init time.
 	AttributeSet = CreateDefaultSubobject<ULProjectAttributeSet>(TEXT("AttributeSet"));
+
+	// Asset-free hit reaction (mesh squash punch); triggered by the CombatFeedback subsystem on hits.
+	HitReact = CreateDefaultSubobject<ULProjectHitReactComponent>(TEXT("HitReact"));
 }
 
 UAbilitySystemComponent* ALProjectCharacterBase::GetAbilitySystemComponent() const
