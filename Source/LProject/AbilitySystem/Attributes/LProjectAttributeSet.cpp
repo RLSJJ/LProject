@@ -60,6 +60,14 @@ void ULProjectAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCa
 {
 	Super::PostGameplayEffectExecute(Data);
 
+	// Identity is built/spent by instant GEs (GE_IdentityGain); clamp the base here since instant effects
+	// modify the base value directly and bypass the PreAttributeChange clamp.
+	if (Data.EvaluatedData.Attribute == GetIdentityAttribute())
+	{
+		SetIdentity(FMath::Clamp(GetIdentity(), 0.0f, GetIdentityMax()));
+		return;
+	}
+
 	// Only the Damage meta-attribute flows through here; all damage is routed via the exec calc.
 	if (Data.EvaluatedData.Attribute != GetDamageAttribute())
 	{

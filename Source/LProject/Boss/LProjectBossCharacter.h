@@ -70,6 +70,11 @@ public:
 	void EnterGroggy();
 	void ExitGroggy();
 
+	//~ Begin ILProjectCombatant
+	/** Player landed a counter: interrupt the in-flight pattern (decoupled via the combatant interface). */
+	virtual void NotifyCountered() override;
+	//~ End ILProjectCombatant
+
 	/** Broadcast when the groggy window opens / closes (HUD + runner pause hooks). */
 	UPROPERTY(BlueprintAssignable, Category = "Boss")
 	FLProjectBossSimpleEvent OnGroggyStart;

@@ -5,11 +5,11 @@
 #include "AbilitySystem/Effects/LProjectGE_AttackUp.h"
 #include "AbilitySystem/Effects/LProjectGE_Damage.h"
 #include "AbilitySystem/Effects/LProjectGE_DamageOverTime.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
-#include "Boss/LProjectBossCharacter.h"
-#include "Boss/LProjectBossPatternRunnerComponent.h"
+#include "Combat/LProjectCombatInterface.h"
 #include "Core/LProjectGameplayTags.h"
-#include "Encounter/LProjectEncounterDirector.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 
@@ -42,24 +42,58 @@ void ULProjectGA_Counter::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 		return;
 	}
 
-	ULProjectEncounterDirector* Director = World->GetSubsystem<ULProjectEncounterDirector>();
-	ALProjectBossCharacter* Boss = Director ? Director->GetBoss() : nullptr;
-	UAbilitySystemComponent* BossASC = Boss ? Boss->GetAbilitySystemComponent() : nullptr;
+	// Find a counterable combatant in range — decoupled from the boss/encounter concrete types: overlap
+	// nearby pawns, keep the nearest one that (a) implements ILProjectCombatant and (b) is currently
+	// broadcasting the counterable window. This lets the counter work against any counterable enemy.
+	const FVector Origin = Avatar->GetActorLocation();
+	FCollisionObjectQueryParams ObjectParams(ECC_Pawn);
+	FCollisionQueryParams QueryParams(FName(TEXT("LProjectCounter")), false, Avatar);
 
-	const bool bInRange = Boss && FVector::Dist(Avatar->GetActorLocation(), Boss->GetActorLocation()) <= Range;
-	const bool bSuccess = bInRange && BossASC && BossASC->HasMatchingGameplayTag(TAG_State_Boss_Counterable);
+	TArray<FOverlapResult> Overlaps;
+	World->OverlapMultiByObjectType(Overlaps,
+	    Origin,
+	    FQuat::Identity,
+	    ObjectParams,
+	    FCollisionShape::MakeSphere(Range),
+	    QueryParams);
 
-	if (!bSuccess)
+	AActor* TargetActor = nullptr;
+	UAbilitySystemComponent* TargetASC = nullptr;
+	float BestDistSq = TNumericLimits<float>::Max();
+	for (const FOverlapResult& Overlap : Overlaps)
 	{
-		// Whiff: off-window or out of range.
+		AActor* Candidate = Overlap.GetActor();
+		if (!Candidate || Candidate == Avatar || !Cast<ILProjectCombatant>(Candidate))
+		{
+			continue;
+		}
+		UAbilitySystemComponent* CandidateASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Candidate);
+		if (!CandidateASC || !CandidateASC->HasMatchingGameplayTag(TAG_State_Boss_Counterable))
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared(Origin, Candidate->GetActorLocation());
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			TargetActor = Candidate;
+			TargetASC = CandidateASC;
+		}
+	}
+
+	if (!TargetActor || !TargetASC)
+	{
+		// Whiff: nothing counterable in range / off-window.
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 		return;
 	}
 
-	// Interrupt the boss's in-flight pattern.
-	if (ULProjectBossPatternRunnerComponent* Runner = Boss->GetPatternRunner())
+	UAbilitySystemComponent* BossASC = TargetASC;
+
+	// Interrupt the target's in-flight action through the combatant interface (no concrete-type coupling).
+	if (ILProjectCombatant* Combatant = Cast<ILProjectCombatant>(TargetActor))
 	{
-		Runner->InterruptCurrentPattern();
+		Combatant->NotifyCountered();
 	}
 
 	// Stagger burst + chip damage.
@@ -72,6 +106,8 @@ void ULProjectGA_Counter::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 		{
 			Spec.Data->SetSetByCallerMagnitude(TAG_SetByCaller_Damage, CounterDamage);
 			Spec.Data->SetSetByCallerMagnitude(TAG_SetByCaller_StaggerDamage, StaggerBurst);
+			// Counter chip is true damage — the exec calc skips Defense mitigation for this tag.
+			Spec.Data->AddDynamicAssetTag(TAG_Damage_Type_True);
 			SourceASC->ApplyGameplayEffectSpecToTarget(*Spec.Data, BossASC);
 		}
 	}

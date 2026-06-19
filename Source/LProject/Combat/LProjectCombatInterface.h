@@ -24,4 +24,14 @@ public:
 	virtual float GetHealth() const = 0;
 	virtual float GetMaxHealth() const = 0;
 	virtual bool IsAlive() const = 0;
+
+	/**
+	 * The player landed a successful counter on this combatant. Implementers react by interrupting their
+	 * current action (the boss cancels its in-flight pattern). Default no-op so non-counterable combatants
+	 * (the player, adds) don't have to implement it. This is the seam that lets the counter ability stay
+	 * decoupled from the concrete boss/encounter types.
+	 */
+	virtual void NotifyCountered()
+	{
+	}
 };

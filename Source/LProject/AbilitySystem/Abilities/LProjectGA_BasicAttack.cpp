@@ -82,13 +82,10 @@ void ULProjectGA_BasicAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 			}
 		}
 
-		// Basic attack is the Identity engine: each hit builds the awakening resource.
+		// Basic attack is the Identity engine: each hit builds the awakening resource (via the GAS pipeline).
 		if (AlreadyHit.Num() > 0)
 		{
-			const float Cur = SourceASC->GetNumericAttribute(ULProjectAttributeSet::GetIdentityAttribute());
-			const float Max = SourceASC->GetNumericAttribute(ULProjectAttributeSet::GetIdentityMaxAttribute());
-			SourceASC->SetNumericAttributeBase(ULProjectAttributeSet::GetIdentityAttribute(),
-			    FMath::Clamp(Cur + IdentityPerHit * AlreadyHit.Num(), 0.0f, Max));
+			ApplyIdentityDelta(IdentityPerHit * AlreadyHit.Num());
 		}
 	}
 

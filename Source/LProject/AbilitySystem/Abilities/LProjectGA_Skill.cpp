@@ -123,14 +123,8 @@ int32 ULProjectGA_Skill::ApplyShapeDamage(const FVector& Center,
 
 void ULProjectGA_Skill::GainIdentity(float Amount)
 {
-	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-	if (!ASC)
-	{
-		return;
-	}
-	const float Cur = ASC->GetNumericAttribute(ULProjectAttributeSet::GetIdentityAttribute());
-	const float Max = ASC->GetNumericAttribute(ULProjectAttributeSet::GetIdentityMaxAttribute());
-	ASC->SetNumericAttributeBase(ULProjectAttributeSet::GetIdentityAttribute(), FMath::Clamp(Cur + Amount, 0.0f, Max));
+	// Build/spend the awakening resource through the GAS pipeline (GE_IdentityGain) — see base helper.
+	ApplyIdentityDelta(Amount);
 }
 
 float ULProjectGA_Skill::GetIdentity() const

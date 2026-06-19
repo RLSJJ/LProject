@@ -11,7 +11,6 @@
 #include "Flow/LProjectGameFlowSubsystem.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
-#include "UI/LProjectDebugHUD.h"
 
 static TAutoConsoleVariable<int32> CVarSkipFrontEnd(TEXT("lp.SkipFrontEnd"),
     0,
@@ -21,8 +20,7 @@ static TAutoConsoleVariable<int32> CVarSkipFrontEnd(TEXT("lp.SkipFrontEnd"),
 ALProjectEncounterGameMode::ALProjectEncounterGameMode()
 {
 	BossClass = ALProjectBossCharacter::StaticClass();
-	// In-fight readout is the UMG ULProjectRaidHUD (shown by the flow during Encounter).
-	// ALProjectDebugHUD remains available as a dev fallback but is not the default HUD.
+	// In-fight readout is the UMG ULProjectRaidHUD, shown by the flow subsystem during the Encounter state.
 }
 
 void ALProjectEncounterGameMode::BeginPlay()

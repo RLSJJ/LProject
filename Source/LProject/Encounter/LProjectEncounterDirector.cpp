@@ -243,9 +243,8 @@ void ULProjectEncounterDirector::RetryEncounter()
 			ASC->RemoveLooseGameplayTag(TAG_State_Dead);
 			ASC->RemoveLooseGameplayTag(TAG_State_Boss_Groggy);
 			ASC->RemoveLooseGameplayTag(TAG_State_Boss_Enraged);
-			// Clear any enrage/buff effects carried over from the prior attempt.
-			ASC->RemoveActiveEffects(
-			    FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(TAG_Buff_AttackUp)));
+			// Clear the enrage attack buff carried over from the prior attempt.
+			ASC->RemoveActiveGameplayEffectBySourceEffect(ULProjectGE_AttackUp::StaticClass(), nullptr);
 			ASC->SetNumericAttributeBase(ULProjectAttributeSet::GetHealthAttribute(), B->GetMaxHealth());
 			if (const ULProjectBossAttributeSet* BossSet = B->GetBossAttributeSet())
 			{

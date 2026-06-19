@@ -17,6 +17,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_State_Boss_PartBroken, "State.Boss.PartBroken");
 UE_DEFINE_GAMEPLAY_TAG(TAG_SetByCaller_Damage, "SetByCaller.Damage");
 UE_DEFINE_GAMEPLAY_TAG(TAG_SetByCaller_StaggerDamage, "SetByCaller.StaggerDamage");
 UE_DEFINE_GAMEPLAY_TAG(TAG_SetByCaller_CooldownDuration, "SetByCaller.CooldownDuration");
+UE_DEFINE_GAMEPLAY_TAG(TAG_SetByCaller_Identity, "SetByCaller.Identity");
 
 // Damage types
 UE_DEFINE_GAMEPLAY_TAG(TAG_Damage_Type_Physical, "Damage.Type.Physical");

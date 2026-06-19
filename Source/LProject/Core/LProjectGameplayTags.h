@@ -29,6 +29,8 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_Boss_PartBroken);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_SetByCaller_Damage);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_SetByCaller_StaggerDamage);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_SetByCaller_CooldownDuration);
+/** Identity (awakening resource) delta for the GE_IdentityGain effect (positive = build, negative = spend). */
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_SetByCaller_Identity);
 
 // --- Damage types ----------------------------------------------------------------------------------
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Damage_Type_Physical);

@@ -266,6 +266,14 @@ void ALProjectBossCharacter::ExitGroggy()
 	OnGroggyEnd.Broadcast();
 }
 
+void ALProjectBossCharacter::NotifyCountered()
+{
+	if (PatternRunner)
+	{
+		PatternRunner->InterruptCurrentPattern();
+	}
+}
+
 float ALProjectBossCharacter::GetMaxHealthPerBar() const
 {
 	return GetMaxHealth() / static_cast<float>(GetHealthBarCount());
