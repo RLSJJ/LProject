@@ -43,5 +43,8 @@ bool ULProjectHitShakePattern::IsFinishedImpl() const
 ULProjectCameraShake_Hit::ULProjectCameraShake_Hit(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
-	ChangeRootShakePattern<ULProjectHitShakePattern>();
+	// Must use the ObjectInitializer (named subobject) here — ChangeRootShakePattern() calls NewObject
+	// with an empty name, which asserts inside a constructor.
+	SetRootShakePattern(
+	    ObjectInitializer.CreateDefaultSubobject<ULProjectHitShakePattern>(this, TEXT("RootShakePattern")));
 }
