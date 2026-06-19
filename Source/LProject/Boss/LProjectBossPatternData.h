@@ -70,6 +70,17 @@ struct FLProjectBossAttackPattern
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern")
 	bool bCounterable = false;
 
+	/** Launch strength applied to hit targets, away from the strike center (0 = no knockback). */
+	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Mechanic")
+	float KnockbackStrength = 0.0f;
+
+	/**
+	 * Inverts the danger: the telegraphed shape is the SAFE zone — targets OUTSIDE it are hit instead of
+	 * those inside (a stand-in / safe-spot mechanic, the opposite of dodge-the-circle).
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Mechanic")
+	bool bSafeInside = false;
+
 	/** Relative weight in random selection. */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern")
 	float SelectionWeight = 1.0f;
@@ -77,6 +88,17 @@ struct FLProjectBossAttackPattern
 	/** Only selectable while the encounter's active phase tags contain all of these (empty = any phase). */
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern")
 	FGameplayTagContainer RequiredPhaseTags;
+
+	/** Cheap identity used for anti-repeat selection (distinguishes patterns by shape/target/timing/size). */
+	uint32 MakeSignature() const
+	{
+		uint32 H = GetTypeHash(static_cast<uint8>(Shape));
+		H = HashCombine(H, GetTypeHash(static_cast<uint8>(TargetMode)));
+		H = HashCombine(H, GetTypeHash(FMath::RoundToInt(TelegraphDuration * 10.0f)));
+		H = HashCombine(H, GetTypeHash(FMath::RoundToInt(Damage)));
+		H = HashCombine(H, GetTypeHash(FMath::RoundToInt(AoESize.X)));
+		return H;
+	}
 };
 
 /**

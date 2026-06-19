@@ -78,7 +78,10 @@ ALProjectBossCharacter::ALProjectBossCharacter()
 	bUseControllerRotationRoll = false;
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
-		Movement->bOrientRotationToMovement = false;
+		Movement->bOrientRotationToMovement = false; // boss faces the player manually, independent of movement
+		Movement->MaxWalkSpeed = MoveSpeed;
+		Movement->MaxAcceleration = 1400.0f;
+		Movement->BrakingDecelerationWalking = 1600.0f;
 	}
 }
 
@@ -283,11 +286,10 @@ void ALProjectBossCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	UpdateLocomotionAnim();
-
-	// Face the player (yaw only); stop once dead.
+	// Face the player (yaw only) + reposition; stop once dead.
 	if (!IsAlive())
 	{
+		UpdateLocomotionAnim();
 		return;
 	}
 
@@ -300,5 +302,42 @@ void ALProjectBossCharacter::Tick(float DeltaSeconds)
 			const FRotator Target(0.0f, ToPlayer.Rotation().Yaw, 0.0f);
 			SetActorRotation(FMath::RInterpConstantTo(GetActorRotation(), Target, DeltaSeconds, FacingInterpSpeed));
 		}
+	}
+
+	UpdateMovement();
+	UpdateLocomotionAnim();
+}
+
+void ALProjectBossCharacter::UpdateMovement()
+{
+	// The boss only repositions while free (Idle) and not groggy — during a committed pattern it holds.
+	if (bGroggy || (PatternRunner && PatternRunner->IsBusy()))
+	{
+		return;
+	}
+
+	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!PlayerPawn)
+	{
+		return;
+	}
+
+	FVector ToPlayer = PlayerPawn->GetActorLocation() - GetActorLocation();
+	ToPlayer.Z = 0.0f;
+	const float Dist = ToPlayer.Size();
+	if (Dist <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+	const FVector Dir = ToPlayer / Dist;
+
+	// Hold inside the deadzone; otherwise close the gap or back off to keep the preferred range.
+	if (Dist > PreferredRange + RangeDeadzone)
+	{
+		AddMovementInput(Dir, 1.0f);
+	}
+	else if (Dist < PreferredRange - RangeDeadzone)
+	{
+		AddMovementInput(-Dir, 1.0f);
 	}
 }

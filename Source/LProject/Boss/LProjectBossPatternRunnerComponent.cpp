@@ -101,7 +101,23 @@ void ULProjectBossPatternRunnerComponent::EnterIdle()
 void ULProjectBossPatternRunnerComponent::StartPattern()
 {
 	const ULProjectBossPatternData* Data = GetActivePatternData();
-	const FLProjectBossAttackPattern* Picked = Data ? Data->SelectPattern(ActivePhaseTags, RandStream) : nullptr;
+	if (!Data)
+	{
+		EnterIdle();
+		return;
+	}
+
+	// Anti-repeat: re-roll a few times so the boss doesn't slam the identical move back-to-back, which
+	// reads as a random generator rather than an authored rotation.
+	const FLProjectBossAttackPattern* Picked = nullptr;
+	for (int32 Attempt = 0; Attempt < 4; ++Attempt)
+	{
+		Picked = Data->SelectPattern(ActivePhaseTags, RandStream);
+		if (!Picked || !bHasLastSignature || Picked->MakeSignature() != LastPatternSignature)
+		{
+			break;
+		}
+	}
 	if (!Picked)
 	{
 		EnterIdle();
@@ -109,6 +125,8 @@ void ULProjectBossPatternRunnerComponent::StartPattern()
 	}
 
 	CurrentPattern = *Picked;
+	LastPatternSignature = Picked->MakeSignature();
+	bHasLastSignature = true;
 	bHasCurrent = true;
 
 	const FTransform StrikeXform = ComputeStrikeTransform(CurrentPattern);
@@ -146,7 +164,8 @@ void ULProjectBossPatternRunnerComponent::SpawnTelegraph()
 		    CurrentPattern.AoESize,
 		    CurrentPattern.TelegraphDuration,
 		    StrikeLocation,
-		    StrikeRotation);
+		    StrikeRotation,
+		    CurrentPattern.bSafeInside);
 		ActiveTelegraph = Telegraph;
 	}
 }
@@ -161,36 +180,30 @@ void ULProjectBossPatternRunnerComponent::ExecuteStrike()
 		return;
 	}
 
-	const FQuat Rotation = StrikeRotation.Quaternion();
-	FCollisionShape Shape;
-	switch (CurrentPattern.Shape)
-	{
-	case ELProjectTelegraphShape::Box:
-		Shape = FCollisionShape::MakeBox(FVector(CurrentPattern.AoESize.X, CurrentPattern.AoESize.Y, 250.0f));
-		break;
-	case ELProjectTelegraphShape::Circle:
-	case ELProjectTelegraphShape::Cone:
-	default:
-		Shape = FCollisionShape::MakeSphere(CurrentPattern.AoESize.X);
-		break;
-	}
-
 	if (bDrawDebugStrike)
 	{
 		DrawDebugSphere(World,
 		    StrikeLocation,
-		    Shape.GetSphereRadius() > 0 ? Shape.GetSphereRadius() : 100.0f,
+		    FMath::Max(CurrentPattern.AoESize.X, 100.0f),
 		    16,
 		    FColor::Magenta,
 		    false,
 		    0.6f);
 	}
 
+	// Broad candidate gather: a sphere big enough to include targets OUTSIDE the shape too (safe-zone
+	// mechanics hit those who are NOT standing in the telegraph), then filter by shape membership.
+	const float GatherRadius = FMath::Max(CurrentPattern.AoESize.X, CurrentPattern.AoESize.Y) + 2500.0f;
 	FCollisionObjectQueryParams ObjectParams(ECC_Pawn);
 	FCollisionQueryParams QueryParams(FName(TEXT("LProjectBossStrike")), false, B);
 
 	TArray<FOverlapResult> Overlaps;
-	World->OverlapMultiByObjectType(Overlaps, StrikeLocation, Rotation, ObjectParams, Shape, QueryParams);
+	World->OverlapMultiByObjectType(Overlaps,
+	    StrikeLocation,
+	    FQuat::Identity,
+	    ObjectParams,
+	    FCollisionShape::MakeSphere(GatherRadius),
+	    QueryParams);
 
 	FGameplayEffectContextHandle Context = SourceASC->MakeEffectContext();
 	Context.AddSourceObject(B);
@@ -202,11 +215,6 @@ void ULProjectBossPatternRunnerComponent::ExecuteStrike()
 	SpecHandle.Data->SetSetByCallerMagnitude(TAG_SetByCaller_Damage, CurrentPattern.Damage);
 	SpecHandle.Data->SetSetByCallerMagnitude(TAG_SetByCaller_StaggerDamage, CurrentPattern.StaggerDamage);
 
-	// Cone targeting: keep only actors within the half-angle of the strike's forward direction.
-	const bool bConeFilter = CurrentPattern.Shape == ELProjectTelegraphShape::Cone;
-	const FVector Forward = StrikeRotation.Vector();
-	const float CosHalfAngle = FMath::Cos(FMath::DegreesToRadians(CurrentPattern.AoESize.Y));
-
 	TSet<AActor*> AlreadyHit;
 	for (const FOverlapResult& Overlap : Overlaps)
 	{
@@ -216,14 +224,11 @@ void ULProjectBossPatternRunnerComponent::ExecuteStrike()
 			continue;
 		}
 
-		if (bConeFilter)
+		// Normal: hit if inside the shape. Safe-zone (bSafeInside): hit if OUTSIDE it.
+		const bool bInside = IsLocationInStrikeShape(HitActor->GetActorLocation());
+		if (bInside == CurrentPattern.bSafeInside)
 		{
-			FVector ToActor = HitActor->GetActorLocation() - StrikeLocation;
-			ToActor.Z = 0.0f;
-			if (!ToActor.IsNearlyZero() && FVector::DotProduct(ToActor.GetSafeNormal(), Forward) < CosHalfAngle)
-			{
-				continue;
-			}
+			continue;
 		}
 
 		AlreadyHit.Add(HitActor);
@@ -234,6 +239,48 @@ void ULProjectBossPatternRunnerComponent::ExecuteStrike()
 			continue; // i-frames (dash/counter) dodge the hit
 		}
 		SourceASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data, TargetASC);
+
+		// Knockback: launch the target away from the strike center (player gets airborne pushback).
+		if (CurrentPattern.KnockbackStrength > 0.0f)
+		{
+			if (ACharacter* HitChar = Cast<ACharacter>(HitActor))
+			{
+				FVector Away = HitActor->GetActorLocation() - StrikeLocation;
+				Away.Z = 0.0f;
+				Away = Away.GetSafeNormal();
+				const FVector Launch = Away * CurrentPattern.KnockbackStrength + FVector(0, 0, 350.0f);
+				HitChar->LaunchCharacter(Launch, true, true);
+			}
+		}
+	}
+}
+
+bool ULProjectBossPatternRunnerComponent::IsLocationInStrikeShape(const FVector& Loc) const
+{
+	FVector ToActor = Loc - StrikeLocation;
+	ToActor.Z = 0.0f;
+	const float Dist2D = ToActor.Size2D();
+
+	switch (CurrentPattern.Shape)
+	{
+	case ELProjectTelegraphShape::Box:
+	{
+		// Into the strike's local frame: |x| <= halfX, |y| <= halfY.
+		const FVector Local = StrikeRotation.UnrotateVector(ToActor);
+		return FMath::Abs(Local.X) <= CurrentPattern.AoESize.X && FMath::Abs(Local.Y) <= CurrentPattern.AoESize.Y;
+	}
+	case ELProjectTelegraphShape::Cone:
+	{
+		if (Dist2D > CurrentPattern.AoESize.X || Dist2D <= KINDA_SMALL_NUMBER)
+		{
+			return Dist2D <= KINDA_SMALL_NUMBER; // at the apex counts as inside
+		}
+		const float CosHalf = FMath::Cos(FMath::DegreesToRadians(CurrentPattern.AoESize.Y));
+		return FVector::DotProduct(ToActor / Dist2D, StrikeRotation.Vector()) >= CosHalf;
+	}
+	case ELProjectTelegraphShape::Circle:
+	default:
+		return Dist2D <= CurrentPattern.AoESize.X;
 	}
 }
 
@@ -348,7 +395,6 @@ void ULProjectBossPatternRunnerComponent::BuildDefaultPatternData()
 
 	// 1) Dodge-the-circle under the player.
 	FLProjectBossAttackPattern CircleOnPlayer;
-	CircleOnPlayer.PatternId = TAG_Phase_1; // placeholder id; ids are for logs only
 	CircleOnPlayer.Shape = ELProjectTelegraphShape::Circle;
 	CircleOnPlayer.AoESize = FVector(400.0f, 0.0f, 0.0f);
 	CircleOnPlayer.TargetMode = ELProjectTelegraphTarget::PlayerLocation;
@@ -389,4 +435,29 @@ void ULProjectBossPatternRunnerComponent::BuildDefaultPatternData()
 	CounterCone.bCounterable = true;
 	CounterCone.SelectionWeight = 0.7f;
 	DefaultPatternData->Patterns.Add(CounterCone);
+
+	// 5) PHASE 2+: knockback slam — a fast point-blank burst that launches the player away.
+	FLProjectBossAttackPattern KnockbackSlam;
+	KnockbackSlam.Shape = ELProjectTelegraphShape::Circle;
+	KnockbackSlam.AoESize = FVector(560.0f, 0.0f, 0.0f);
+	KnockbackSlam.TargetMode = ELProjectTelegraphTarget::SelfLocation;
+	KnockbackSlam.TelegraphDuration = 1.3f;
+	KnockbackSlam.Damage = 55.0f;
+	KnockbackSlam.StaggerDamage = 0.0f;
+	KnockbackSlam.KnockbackStrength = 1500.0f;
+	KnockbackSlam.SelectionWeight = 1.0f;
+	KnockbackSlam.RequiredPhaseTags.AddTag(TAG_Phase_2);
+	DefaultPatternData->Patterns.Add(KnockbackSlam);
+
+	// 6) PHASE 3+: safe-zone — the telegraphed ring is the ONLY safe spot; stand IN it or get hit.
+	FLProjectBossAttackPattern SafeRing;
+	SafeRing.Shape = ELProjectTelegraphShape::Circle;
+	SafeRing.AoESize = FVector(420.0f, 0.0f, 0.0f);
+	SafeRing.TargetMode = ELProjectTelegraphTarget::SelfLocation;
+	SafeRing.TelegraphDuration = 2.2f;
+	SafeRing.Damage = 80.0f;
+	SafeRing.bSafeInside = true; // damages everyone OUTSIDE the ring
+	SafeRing.SelectionWeight = 0.8f;
+	SafeRing.RequiredPhaseTags.AddTag(TAG_Phase_3);
+	DefaultPatternData->Patterns.Add(SafeRing);
 }

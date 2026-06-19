@@ -17,12 +17,18 @@ void ALProjectTelegraphActor::InitTelegraph(ELProjectTelegraphShape InShape,
     const FVector& InSize,
     float InDuration,
     const FVector& InLocation,
-    const FRotator& InRotation)
+    const FRotator& InRotation,
+    bool bInSafeZone)
 {
 	Shape = InShape;
 	Size = InSize;
 	Duration = FMath::Max(InDuration, 0.05f);
 	Elapsed = 0.0f;
+	bSafeZone = bInSafeZone;
+	if (bSafeZone)
+	{
+		BorderColor = FColor(60, 230, 90); // green = stand here
+	}
 	SetActorLocationAndRotation(InLocation, InRotation);
 	bInitialized = true;
 }
@@ -56,8 +62,9 @@ void ALProjectTelegraphActor::DrawTelegraph(float Fill) const
 	}
 
 	const FVector Loc = GetActorLocation();
-	// Fill colour ramps yellow -> red as the strike approaches.
-	const FColor FillColor(255, static_cast<uint8>(255.0f * (1.0f - Fill)), 0);
+	// Danger fill ramps yellow -> red as the strike approaches; safe-zone fill stays green.
+	const FColor FillColor =
+	    bSafeZone ? FColor(60, 230, 90) : FColor(255, static_cast<uint8>(255.0f * (1.0f - Fill)), 0);
 
 	switch (Shape)
 	{

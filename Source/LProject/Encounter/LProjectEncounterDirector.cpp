@@ -170,8 +170,9 @@ void ULProjectEncounterDirector::EnterPhase(int32 PhaseIndex)
 	CurrentPhaseIndex = PhaseIndex;
 	const FLProjectEncounterPhase& Phase = Phases[PhaseIndex];
 
+	// Accumulate phase tags (don't reset): later phases keep earlier tags, so a pattern gated on Phase.2
+	// stays available through Phase.3 — the "unlock and keep" raid model. Reset happens in StartEncounter.
 	ActivePhaseTag = Phase.PhaseTag;
-	ActivePhaseTags.Reset();
 	if (Phase.PhaseTag.IsValid())
 	{
 		ActivePhaseTags.AddTag(Phase.PhaseTag);

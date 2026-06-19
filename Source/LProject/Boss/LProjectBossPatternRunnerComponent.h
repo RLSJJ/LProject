@@ -68,6 +68,13 @@ public:
 		return bCounterWindowOpen;
 	}
 
+	/** True while the boss is committed to a pattern (telegraphing/striking/recovering) — it should not
+	 *  reposition during these. False only in Idle, when the boss is free to walk/reposition. */
+	bool IsBusy() const
+	{
+		return State != ELProjectBossRunnerState::Idle;
+	}
+
 	UPROPERTY(BlueprintAssignable, Category = "Boss")
 	FLProjectCounterWindowEvent OnCounterWindowChanged;
 
@@ -77,6 +84,8 @@ protected:
 	void EnterIdle();
 	void StartPattern();
 	void ExecuteStrike();
+	/** True if a world location lies inside the current pattern's telegraph shape (circle/box/cone). */
+	bool IsLocationInStrikeShape(const FVector& Loc) const;
 	void SpawnTelegraph();
 	void OpenCounterWindow();
 	void CloseCounterWindow();
@@ -122,6 +131,10 @@ private:
 	bool bPaused = false;
 	bool bCounterWindowOpen = false;
 	float CadenceScale = 1.0f;
+
+	// Anti-repeat: signature of the last selected pattern so we don't pick it twice in a row.
+	uint32 LastPatternSignature = 0;
+	bool bHasLastSignature = false;
 
 	FVector StrikeLocation = FVector::ZeroVector;
 	FRotator StrikeRotation = FRotator::ZeroRotator;

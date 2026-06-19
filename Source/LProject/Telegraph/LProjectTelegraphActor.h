@@ -34,12 +34,13 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** Configure and start the telegraph. Call right after spawning. */
+	/** Configure and start the telegraph. Call right after spawning. bSafeZone draws it green (stand-in). */
 	void InitTelegraph(ELProjectTelegraphShape InShape,
 	    const FVector& InSize,
 	    float InDuration,
 	    const FVector& InLocation,
-	    const FRotator& InRotation);
+	    const FRotator& InRotation,
+	    bool bInSafeZone = false);
 
 protected:
 	void DrawTelegraph(float Fill) const;
@@ -57,6 +58,9 @@ protected:
 	/** Outer ring colour (constant warning border). */
 	UPROPERTY(EditDefaultsOnly, Category = "Telegraph")
 	FColor BorderColor = FColor(255, 200, 0);
+
+	/** Safe-zone telegraph: the marked area is SAFE (drawn green); standing outside it gets you hit. */
+	bool bSafeZone = false;
 
 	float Elapsed = 0.0f;
 	bool bInitialized = false;

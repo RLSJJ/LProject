@@ -132,6 +132,22 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Boss")
 	float FacingInterpSpeed = 180.0f;
 
+	// --- Movement (the boss repositions between attacks; it is not a stationary turret) ---
+	/** Ideal distance the boss tries to keep from the player while free (in Idle). */
+	UPROPERTY(EditDefaultsOnly, Category = "Boss|Movement")
+	float PreferredRange = 480.0f;
+
+	/** Hysteresis band around PreferredRange where the boss holds position (no fidgeting). */
+	UPROPERTY(EditDefaultsOnly, Category = "Boss|Movement")
+	float RangeDeadzone = 160.0f;
+
+	/** Boss walk speed (cm/s); also gates which locomotion anim plays. */
+	UPROPERTY(EditDefaultsOnly, Category = "Boss|Movement")
+	float MoveSpeed = 360.0f;
+
+	/** Updates chase/reposition movement toward/away from the player while free. */
+	void UpdateMovement();
+
 	/** Optional data-driven kit. If null the boss uses the code defaults above. */
 	UPROPERTY(EditDefaultsOnly, Category = "Boss")
 	TObjectPtr<ULProjectPawnData> BossPawnData;
