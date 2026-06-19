@@ -10,19 +10,27 @@ solo balancing is natural). Multiplayer is intentionally out of scope; that budg
 raid-mechanic depth. Originally from the Blank template (hence the `TP_Blank` → `LProject` game-name
 redirects in `Config/DefaultEngine.ini`).
 
-**Current state — boss base systems done, build-verified.** The full Lost Ark boss-fight base-system
-framework is in and compiles: combat attributes + a single SetByCaller/exec-calc **damage pipeline**,
-player **basic attack** (left-click 평타, box-overlap hit detection), a greybox **boss** (multi-bar HP,
-stagger→**groggy**/무력화 with 2× bonus damage, **part-break** weakness), a **telegraph→strike** system
-(debug-draw AoE shapes), a data-driven **pattern runner FSM** (Idle→Telegraph→Strike→Recovery), a
-**counter** window, **buff/debuff/DoT** GameplayEffects, an **EncounterDirector** world subsystem
-(phase gates, enrage DPS check, win/lose/retry), and an **AHUD debug HUD**. Everything is greybox
-(engine cubes + debug draws) and playable with **zero authored assets**. `Content/` is still empty —
-real meshes/materials/anims + tuned DataAssets are the production follow-up.
+**Current state — full vertical slice, build- and smoke-verified.** On top of the base systems sits a
+complete front-to-back experience: a **GameInstance flow state machine** (Boot→Title→Ready→Encounter→
+Result, guarded legal transitions) driving **C++ UMG screens** + an in-fight **UMG raid HUD** (boss
+multi-bar HP, stagger/groggy, identity gauge, QWER cooldowns, enrage clock) over a **PNG-texture UI**
+pipeline. Combat: a single SetByCaller/exec-calc **damage pipeline** (incl. **true damage**), player
+**basic attack** + a **QWER skill kit** with an **Identity/awakening** resource (all via GEs), a
+**counter** window (decoupled through the combatant interface), and a **combat-feel layer**
+(`Feedback/`): camera shake, hit-stop, floating damage numbers, and a mesh-squash hit reaction, all
+fanned out from the one damage seam. The **boss** moves (chases/repositions, no longer a turret), reads
+its attacks with a procedural rear-up→slam **tell**, runs **stagger→groggy→2×**, **positional part-break**
+(Head/Core/Tail by facing), and a **mechanic vocabulary** beyond dodge-the-AoE: **knockback** and
+**safe-zone (stand-in)** patterns. The **EncounterDirector** runs **real phases** (phase-gated movesets +
+an untargetable **phase-transition roar**) and a **soft-enrage** (Enraged buff + faster cadence) before a
+hard wipe. Characters use imported glTF test meshes; UI uses generated PNGs. Visuals are greybox-plus
+(debug-draw telegraphs, procedural feel) — **authored montages, Niagara VFX, SFX, and a Behemoth-grade
+mechanic script are the remaining production work** (hooks are in place: GameplayCue-ready feedback,
+`HitSound`/shake-class data slots, montage-shaped ability timing).
 
-Remaining roadmap: **Phase 4** the actual Behemoth encounter content (authored patterns, real phases,
-signature gimmicks) → **Phase 5** art pass (stylized meshes/VFX, real UMG HUD, telegraph materials) +
-polish + demo video.
+Remaining roadmap: **art pass** (authored attack montages + hit-react anims, telegraph/impact materials,
+Niagara VFX, SFX), **authored encounter content** (signature Behemoth gimmicks, scripted phase sequences),
+and a demo video. See `ARCHITECTURE_REVIEW.md` for the standing self-assessment.
 
 ## Directory layout gotcha
 
@@ -70,7 +78,8 @@ Engine is installed at `C:\Program Files\Epic Games\UE_5.7`. Use the engine's Ba
   `Attributes/`, `Calculations/` exec calcs, `Effects/` GEs), `Character/`, `Player/`, `Input/`,
   `Combat/` (combatant interface), `Boss/` (boss character + pattern/part-break components + pattern
   data), `Telegraph/` (AoE warning actor), `Encounter/` (director subsystem + encounter game mode),
-  `UI/` (AHUD debug HUD).
+  `Flow/` (game-flow GameInstance subsystem), `Feedback/` (camera shake + hit-stop + damage numbers +
+  hit-react combat-feel layer), `UI/` (UMG raid HUD + `Screens/` menu widgets + `Style/` palette).
 - Two build targets: `LProject` (Game) and `LProjectEditor` (Editor), pinned to
   `BuildSettingsVersion.V6` and `EngineIncludeOrderVersion.Unreal5_7`.
 - Public deps in `LProject.Build.cs`: `Core`, `CoreUObject`, `Engine`, `InputCore`, `EnhancedInput`,
@@ -102,9 +111,11 @@ Combat is built on the **Gameplay Ability System**. Key classes (all prefixed `L
 - **`ULProjectGA_Dash`** — first ability: `LaunchCharacter` along move/facing direction + i-frames via
   the `TAG_State_Invulnerable` loose tag, ended on a timer.
 - **`ALProjectPlayerCharacter`** (`Character/`) — quarterview avatar: SpringArm + Camera (fixed angle),
-  world-relative WASD via Enhanced Input, `bOrientRotationToMovement`, plus a placeholder cube mesh
-  (`DevVisualMesh`). Driven by a `ULProjectPawnData`; input is bound by tag. If no PawnData is assigned,
-  `EnsureDefaultPawnData()` builds a WASD+Space default in code so it is playable with zero editor assets.
+  **RMB click-to-move** (steer-while-held + click-to-point auto-run) via Enhanced Input,
+  `bOrientRotationToMovement`, an imported glTF test mesh (CesiumMan) over a fallback cube. Driven by a
+  `ULProjectPawnData`; input is bound by tag. If no PawnData asset is assigned, `EnsureDefaultPawnData()`
+  builds the default control scheme in code (RMB move, LMB 평타, Space dash, F counter, Q/W/E/R skills) so
+  it is playable with zero editor assets.
 - **`ALProjectPlayerController`** / **`ALProjectGameMode`** (`Player/`, `Core/`) — controller skeleton;
   game mode wires pawn + controller and is the `GlobalDefaultGameMode`.
 - **`ULProjectAssetManager`** (`Core/`) — forces `UAbilitySystemGlobals::Get().InitGlobalData()` in
@@ -133,32 +144,47 @@ Combat is built on the **Gameplay Ability System**. Key classes (all prefixed `L
   `…GE_AttackUp`, base `…GameplayEffect`).
 - **Player attacks:** `ULProjectGA_BasicAttack` (left mouse) box-overlaps Pawns in front (no custom
   collision channel — `OverlapMultiByObjectType(ECC_Pawn)`), de-dupes, applies the damage GE.
-  `ULProjectGA_Counter` (Q) only lands while the boss has `State.Boss.Counterable`: it interrupts the
-  pattern, bursts stagger, applies a bleed DoT, self-buffs, and grants i-frames. Dash i-frames
-  (`State.Invulnerable`) make hits whiff — enforced in the runner/strike checks.
+  `ULProjectGA_Counter` (F) only lands while a nearby counterable combatant has `State.Boss.Counterable`:
+  it overlap-finds the target via the `ILProjectCombatant` interface, interrupts its pattern
+  (`NotifyCountered`), bursts stagger, applies a bleed DoT, deals true (Defense-ignoring) chip, self-buffs,
+  and grants i-frames. Dash i-frames (`State.Invulnerable`) make hits whiff — checked by every attacker
+  (basic attack, skills, boss strikes). A **QWER skill kit** (`LProjectSkills`) builds/spends an
+  **Identity** awakening resource, all routed through GEs (`GE_IdentityGain`, no raw attribute writes).
 - **Boss** (`Boss/LProjectBossCharacter`) — subclasses `ALProjectCharacterBase`; grants the boss
-  attribute set in code, faces the player each tick, exposes multi-bar-HP helpers, and runs
-  **groggy/무력화** (stagger→0 pauses the runner + 2× damage for `GroggyDuration`, then refills). Health
-  loss feeds **`ULProjectPartBreakComponent`** (per-part durability; a break permanently lowers Defense).
+  attribute set in code, faces the player each tick AND **repositions** (chases/backs off to a preferred
+  range while free), plays a procedural **attack tell** (rears up through the telegraph, slams on the
+  strike), exposes multi-bar-HP helpers, and runs **groggy/무력화** (stagger→0 pauses the runner + 2×
+  damage for `GroggyDuration`, then refills). Health loss feeds **`ULProjectPartBreakComponent`** —
+  **positional** part-break: damage routes to the part facing the attacker (Head/Core/Tail), and a break
+  permanently lowers Defense (`ResetParts()` re-arms on retry).
 - **Patterns** — `ULProjectBossPatternData` (`FLProjectBossAttackPattern` rows: shape, size, target mode,
   timings, damage/stagger, counterable, weight, required phase tags) is run by
   **`ULProjectBossPatternRunnerComponent`**, an Idle→Telegraph→Strike→Recovery FSM that spawns a
   greybox **`ALProjectTelegraphActor`** (debug-draw circle/box/cone, fill animates to the strike) then
   overlaps + applies damage. Falls back to built-in default patterns when no DataAsset is set.
 - **Encounter** — **`ULProjectEncounterDirector`** (`UTickableWorldSubsystem`) registers boss+player,
-  fires HP-gated phases (swaps the runner's active phase tags), runs the enrage DPS-check timer, and
-  resolves win/lose/retry (exposes `GetOutcome()`, delegates). **`ALProjectEncounterGameMode`** (subclass
-  of `ALProjectGameMode`, the `GlobalDefaultGameMode`) spawns the boss in front of the player on
-  BeginPlay, registers them, and starts the fight; sets `ALProjectDebugHUD` as the HUD.
-- **`ALProjectDebugHUD`** (`UI/`) — Canvas `DrawText`/`DrawRect` (no UMG/Slate deps): boss multi-bar HP,
-  stagger/groggy, counter prompt, broken parts, phase, enrage countdown, player HP, win/lose banner.
+  fires HP-gated **phases** (accumulating phase tags unlock phase-gated movesets; crossing a phase plays
+  an untargetable **roar**), runs the enrage timer (**soft-enrage** Enraged buff + faster cadence at
+  `SoftEnrageSeconds`, hard wipe at 0), and resolves win/lose/retry/abort (exposes `GetOutcome()`,
+  delegates). **`ALProjectEncounterGameMode`** spawns + freezes the boss on BeginPlay and hands first-frame
+  control to the **flow subsystem** (it does NOT auto-start the fight; `lp.SkipFrontEnd 1` drops straight
+  into combat for dev).
+- **`ULProjectGameFlowSubsystem`** (`Flow/`) — the single flow owner (GameInstance subsystem, survives
+  world reload): a guarded state machine (Boot→Title→Ready→Encounter→Result), the only caller of the
+  director's Start/Retry/Abort, swaps the full-screen menu widget + the UMG raid HUD per state, and applies
+  the per-state input/cursor/pause contract.
+- **`ULProjectRaidHUD`** (`UI/`) — C++ UMG over a PNG-texture style (`UI/Style`): boss name plate +
+  multi-bar HP, stagger/groggy, identity gauge, 7-slot skill bar with cooldown readouts, enrage clock,
+  player vitals, counter prompt. Shown by the flow during Encounter. (The old `ALProjectDebugHUD` was
+  removed.)
 
-**To play:** press Play — the **encounter game mode** (now `GlobalDefaultGameMode`) spawns a greybox boss
-in front of the player and starts the fight; everything works with **zero authored assets**. Controls:
-**RMB** move, **LMB** 평타, **Space** dash (i-frames), **Q** counter (during the cyan COUNTER! prompt),
-**R** retry. Swap `GlobalDefaultGameMode` back to `LProjectGameMode` for boss-free movement testing.
-**For production**, author real meshes/materials + tuned `UBossPatternData`/`PawnData`/phase DataAssets;
-the code defaults are a stopgap.
+**To play:** press Play — the **encounter game mode** (`GlobalDefaultGameMode`) spawns the boss + freezes
+it, then the **flow subsystem** runs Title→Ready→Encounter→Result. Controls: **RMB** move, **LMB** 평타,
+**Space** dash (i-frames), **F** counter (during the cyan COUNTER! prompt), **Q/W/E/R** skills (R =
+awakening at full Identity), **R-key** retry **on the Result screen**. `lp.SkipFrontEnd 1` drops straight
+into a live fight. Everything works with **zero authored assets**. Swap `GlobalDefaultGameMode` back to
+`LProjectGameMode` for boss-free movement testing. **For production**, author real meshes/montages/VFX +
+tuned `UBossPatternData`/`PawnData`/phase DataAssets; the code defaults are a stopgap.
 
 ## Engine configuration that shapes the project
 
