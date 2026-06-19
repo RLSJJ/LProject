@@ -28,11 +28,17 @@ void ALProjectPlayerController::SetupInputComponent()
 void ALProjectPlayerController::HandleRetryPressed()
 {
 	// Route through the flow owner so dev (R key) and shipped (RETRY button) paths are identical.
+	// Only meaningful on a Result screen — Flow::Retry() guards illegal states, but gate here too so the
+	// key is inert on Title/Ready and never yanks the player into a fight from a menu.
 	if (UGameInstance* GI = GetGameInstance())
 	{
 		if (ULProjectGameFlowSubsystem* Flow = GI->GetSubsystem<ULProjectGameFlowSubsystem>())
 		{
-			Flow->Retry();
+			const ELProjectGameFlowState State = Flow->GetState();
+			if (State == ELProjectGameFlowState::ResultVictory || State == ELProjectGameFlowState::ResultDefeat)
+			{
+				Flow->Retry();
+			}
 		}
 	}
 }

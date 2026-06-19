@@ -53,14 +53,14 @@ void ULProjectBossPatternRunnerComponent::TickComponent(float DeltaTime,
 	switch (State)
 	{
 	case ELProjectBossRunnerState::Idle:
-		if (PhaseTimer >= IdleDelay)
+		if (PhaseTimer >= IdleDelay * CadenceScale)
 		{
 			StartPattern();
 		}
 		break;
 
 	case ELProjectBossRunnerState::Telegraph:
-		if (bHasCurrent && PhaseTimer >= CurrentPattern.TelegraphDuration)
+		if (bHasCurrent && PhaseTimer >= CurrentPattern.TelegraphDuration * CadenceScale)
 		{
 			CloseCounterWindow();
 			ExecuteStrike();
@@ -70,7 +70,7 @@ void ULProjectBossPatternRunnerComponent::TickComponent(float DeltaTime,
 		break;
 
 	case ELProjectBossRunnerState::Strike:
-		if (!bHasCurrent || PhaseTimer >= CurrentPattern.StrikeDuration)
+		if (!bHasCurrent || PhaseTimer >= CurrentPattern.StrikeDuration * CadenceScale)
 		{
 			State = ELProjectBossRunnerState::Recovery;
 			PhaseTimer = 0.0f;
@@ -78,12 +78,17 @@ void ULProjectBossPatternRunnerComponent::TickComponent(float DeltaTime,
 		break;
 
 	case ELProjectBossRunnerState::Recovery:
-		if (!bHasCurrent || PhaseTimer >= CurrentPattern.RecoveryDuration)
+		if (!bHasCurrent || PhaseTimer >= CurrentPattern.RecoveryDuration * CadenceScale)
 		{
 			EnterIdle();
 		}
 		break;
 	}
+}
+
+void ULProjectBossPatternRunnerComponent::SetEnraged(bool bInEnraged)
+{
+	CadenceScale = bInEnraged ? EnrageCadenceScale : 1.0f;
 }
 
 void ULProjectBossPatternRunnerComponent::EnterIdle()

@@ -44,6 +44,10 @@ public:
 	/** Freeze/unfreeze the FSM (used by groggy and death). */
 	void SetPaused(bool bInPaused);
 
+	/** Enrage: scales the whole attack cadence (idle gap + telegraph/strike/recovery) down so the boss
+	 *  attacks faster and dodge windows tighten. Set by the EncounterDirector on soft-enrage. */
+	void SetEnraged(bool bInEnraged);
+
 	/** Phase tags the EncounterDirector pushes; gate which patterns are selectable. */
 	void SetActivePhaseTags(const FGameplayTagContainer& InPhaseTags)
 	{
@@ -92,6 +96,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Boss")
 	float IdleDelay = 1.2f;
 
+	/** Cadence multiplier applied to all phase timings while enraged (<1 = faster, tighter dodges). */
+	UPROPERTY(EditAnywhere, Category = "Boss", meta = (ClampMin = "0.2", ClampMax = "1.0"))
+	float EnrageCadenceScale = 0.6f;
+
 	/** Seed for reproducible pattern selection. */
 	UPROPERTY(EditAnywhere, Category = "Boss")
 	int32 RandomSeed = 1337;
@@ -113,6 +121,7 @@ private:
 	float PhaseTimer = 0.0f;
 	bool bPaused = false;
 	bool bCounterWindowOpen = false;
+	float CadenceScale = 1.0f;
 
 	FVector StrikeLocation = FVector::ZeroVector;
 	FRotator StrikeRotation = FRotator::ZeroRotator;

@@ -53,6 +53,9 @@ public:
 	/** Feed damage to a specific part by id. */
 	void ApplyPartDamage(FName PartId, float Amount);
 
+	/** Re-arm every part to full durability and give back the Defense that breaks subtracted (retry reset). */
+	void ResetParts();
+
 	UFUNCTION(BlueprintPure, Category = "Boss")
 	int32 GetPartCount() const
 	{

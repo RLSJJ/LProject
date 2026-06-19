@@ -17,9 +17,58 @@
 #include "UI/Screens/LProjectResultWidget.h"
 #include "UI/Screens/LProjectTitleWidget.h"
 
+void ULProjectGameFlowSubsystem::Deinitialize()
+{
+	// Unbind from the director and tear down our viewport widgets so nothing dangles across a world
+	// reload or GameInstance shutdown (the review's PIE-restart soft-lock / widget-leak fix).
+	if (ULProjectEncounterDirector* D = BoundDirector.Get())
+	{
+		D->OnEncounterEnded.RemoveDynamic(this, &ULProjectGameFlowSubsystem::HandleEncounterEnded);
+	}
+	BoundDirector = nullptr;
+
+	if (ActiveScreen)
+	{
+		ActiveScreen->RemoveFromParent();
+		ActiveScreen = nullptr;
+	}
+	if (RaidHUD)
+	{
+		RaidHUD->RemoveFromParent();
+		RaidHUD = nullptr;
+	}
+
+	Super::Deinitialize();
+}
+
 void ULProjectGameFlowSubsystem::BeginFlow()
 {
 	RequestState(ELProjectGameFlowState::Title);
+}
+
+bool ULProjectGameFlowSubsystem::CanEnter(ELProjectGameFlowState From, ELProjectGameFlowState To) const
+{
+	using E = ELProjectGameFlowState;
+	if (From == To)
+	{
+		return true; // idempotent refresh (re-applies presentation); callers guard against re-entrancy
+	}
+	switch (From)
+	{
+	case E::Boot:
+		return To == E::Title || To == E::Encounter; // normal boot, or the dev SkipFrontEnd fast-path
+	case E::Title:
+		return To == E::Ready;
+	case E::Ready:
+		return To == E::Encounter || To == E::Title;
+	case E::Encounter:
+		return To == E::ResultVictory || To == E::ResultDefeat || To == E::Title;
+	case E::ResultVictory:
+	case E::ResultDefeat:
+		return To == E::Encounter || To == E::Title;
+	default:
+		return false;
+	}
 }
 
 APlayerController* ULProjectGameFlowSubsystem::GetPC() const
@@ -106,8 +155,18 @@ void ULProjectGameFlowSubsystem::ShowScreenForState(ELProjectGameFlowState State
 	}
 }
 
-void ULProjectGameFlowSubsystem::RequestState(ELProjectGameFlowState NewState)
+bool ULProjectGameFlowSubsystem::RequestState(ELProjectGameFlowState NewState)
 {
+	if (!CanEnter(CurrentState, NewState))
+	{
+		UE_LOG(LogTemp,
+		    Warning,
+		    TEXT("[Flow] Rejected illegal transition %d -> %d"),
+		    static_cast<int32>(CurrentState),
+		    static_cast<int32>(NewState));
+		return false;
+	}
+
 	CurrentState = NewState;
 	ShowScreenForState(NewState);
 
@@ -143,10 +202,15 @@ void ULProjectGameFlowSubsystem::RequestState(ELProjectGameFlowState NewState)
 	}
 
 	OnFlowStateChanged.Broadcast(NewState);
+	return true;
 }
 
 void ULProjectGameFlowSubsystem::GoToReady()
 {
+	if (CurrentState != ELProjectGameFlowState::Title)
+	{
+		return;
+	}
 	RequestState(ELProjectGameFlowState::Ready);
 }
 
@@ -164,10 +228,16 @@ void ULProjectGameFlowSubsystem::StartOrResetEncounter()
 
 	if (ULProjectEncounterDirector* D = GetDirector())
 	{
-		if (!bBoundEnded)
+		// Bind per-director: on a world reload the director is recreated, so rebind to the live instance
+		// instead of trusting a one-shot flag (which would leave Encounter->Result permanently unbound).
+		if (BoundDirector.Get() != D)
 		{
+			if (ULProjectEncounterDirector* Old = BoundDirector.Get())
+			{
+				Old->OnEncounterEnded.RemoveDynamic(this, &ULProjectGameFlowSubsystem::HandleEncounterEnded);
+			}
 			D->OnEncounterEnded.AddDynamic(this, &ULProjectGameFlowSubsystem::HandleEncounterEnded);
-			bBoundEnded = true;
+			BoundDirector = D;
 		}
 		// RetryEncounter restores both combatants to full and (re)starts — a clean fight every time.
 		D->RetryEncounter();
@@ -176,18 +246,38 @@ void ULProjectGameFlowSubsystem::StartOrResetEncounter()
 
 void ULProjectGameFlowSubsystem::EnterRaid()
 {
+	// Only from the Ready screen (or the dev Boot fast-path). Guards against double-clicking ENTER RAID,
+	// which would otherwise wipe RunStats and restart a live fight.
+	if (CurrentState != ELProjectGameFlowState::Ready && CurrentState != ELProjectGameFlowState::Boot)
+	{
+		return;
+	}
 	RunStats = FLProjectRunStats();
 	StartOrResetEncounter();
 }
 
 void ULProjectGameFlowSubsystem::Retry()
 {
+	// Retry is only meaningful from a Result screen.
+	if (CurrentState != ELProjectGameFlowState::ResultVictory && CurrentState != ELProjectGameFlowState::ResultDefeat)
+	{
+		return;
+	}
 	RunStats.Attempts += 1;
 	StartOrResetEncounter();
 }
 
 void ULProjectGameFlowSubsystem::ReturnToTitle()
 {
+	if (CurrentState == ELProjectGameFlowState::Boot || CurrentState == ELProjectGameFlowState::Title)
+	{
+		return;
+	}
+	// Abandon any live/finished encounter so a stale boss isn't ticking behind the Title menu.
+	if (ULProjectEncounterDirector* D = GetDirector())
+	{
+		D->AbortEncounter();
+	}
 	RequestState(ELProjectGameFlowState::Title);
 }
 
@@ -201,6 +291,12 @@ void ULProjectGameFlowSubsystem::QuitGame()
 
 void ULProjectGameFlowSubsystem::HandleEncounterEnded(bool bWon)
 {
+	// Only resolve a result while actually in the fight — guards against a stale/duplicate broadcast
+	// re-running the result screen after we've already left Encounter.
+	if (CurrentState != ELProjectGameFlowState::Encounter)
+	{
+		return;
+	}
 	CaptureRunStats();
 	RequestState(bWon ? ELProjectGameFlowState::ResultVictory : ELProjectGameFlowState::ResultDefeat);
 }

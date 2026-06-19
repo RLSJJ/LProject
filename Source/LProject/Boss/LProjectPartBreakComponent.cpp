@@ -107,6 +107,35 @@ void ULProjectPartBreakComponent::BreakPart(int32 PartIndex)
 	OnPartBroken.Broadcast(Part.PartId);
 }
 
+void ULProjectPartBreakComponent::ResetParts()
+{
+	float DefenseToRestore = 0.0f;
+	for (FLProjectBossPart& Part : Parts)
+	{
+		if (Part.bBroken)
+		{
+			DefenseToRestore += Part.DefenseReductionOnBreak;
+		}
+		Part.Current = Part.MaxDurability;
+		Part.bBroken = false;
+	}
+
+	if (ALProjectBossCharacter* B = Boss.Get())
+	{
+		if (UAbilitySystemComponent* ASC = B->GetAbilitySystemComponent())
+		{
+			if (DefenseToRestore > 0.0f)
+			{
+				const float Restored =
+				    ASC->GetNumericAttributeBase(ULProjectAttributeSet::GetDefenseAttribute()) + DefenseToRestore;
+				ASC->SetNumericAttributeBase(ULProjectAttributeSet::GetDefenseAttribute(), Restored);
+			}
+			ASC->RemoveLooseGameplayTag(TAG_Debuff_DefenseDown);
+			ASC->RemoveLooseGameplayTag(TAG_State_Boss_PartBroken);
+		}
+	}
+}
+
 int32 ULProjectPartBreakComponent::GetBrokenPartCount() const
 {
 	int32 Count = 0;

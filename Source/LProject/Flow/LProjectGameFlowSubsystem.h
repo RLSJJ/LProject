@@ -58,10 +58,15 @@ class LPROJECT_API ULProjectGameFlowSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
+	//~ Begin USubsystem
+	virtual void Deinitialize() override;
+	//~ End USubsystem
+
 	/** Called by the encounter GameMode once the boss is spawned, registered, and frozen. */
 	void BeginFlow();
 
-	void RequestState(ELProjectGameFlowState NewState);
+	/** Drive the state machine. Rejects illegal transitions (see CanEnter); returns true if it moved. */
+	bool RequestState(ELProjectGameFlowState NewState);
 
 	UFUNCTION(BlueprintPure, Category = "Flow")
 	ELProjectGameFlowState GetState() const
@@ -98,6 +103,9 @@ public:
 	FLProjectFlowStateChanged OnFlowStateChanged;
 
 protected:
+	/** Legal-transition table for the flow state machine. */
+	bool CanEnter(ELProjectGameFlowState From, ELProjectGameFlowState To) const;
+
 	void ShowScreenForState(ELProjectGameFlowState State);
 	void ApplyPresentation(bool bUIOnly, bool bShowCursor, bool bPaused);
 	void StartOrResetEncounter();
@@ -120,5 +128,11 @@ protected:
 
 	FLProjectRunStats RunStats;
 	double EncounterStartTime = 0.0;
-	bool bBoundEnded = false;
+
+	/**
+	 * The director we currently have OnEncounterEnded bound to. The director is a per-world subsystem, so
+	 * on world reload a NEW one is created — tracking the bound instance (instead of a one-shot bool) lets
+	 * us rebind to the fresh director and never leave the flow stuck unable to reach Result again.
+	 */
+	TWeakObjectPtr<ULProjectEncounterDirector> BoundDirector;
 };

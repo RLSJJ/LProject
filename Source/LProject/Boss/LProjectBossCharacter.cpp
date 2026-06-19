@@ -180,6 +180,19 @@ void ALProjectBossCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 	{
 		PartBreak->ApplyDamageToPrimaryPart(DamageTaken);
 	}
+
+	// Death edge: tear down any in-flight pattern + groggy timer so nothing outlives the corpse
+	// (orphaned telegraph drawing, a pending ExitGroggy un-pausing a dead boss).
+	if (Data.NewValue <= 0.0f)
+	{
+		GetWorldTimerManager().ClearTimer(GroggyTimerHandle);
+		bGroggy = false;
+		if (PatternRunner)
+		{
+			PatternRunner->InterruptCurrentPattern();
+			PatternRunner->SetPaused(true);
+		}
+	}
 }
 
 void ALProjectBossCharacter::OnStaggerChanged(const FOnAttributeChangeData& Data)
@@ -236,6 +249,13 @@ void ALProjectBossCharacter::ExitGroggy()
 			ASC->SetNumericAttributeBase(ULProjectBossAttributeSet::GetStaggerCurrentAttribute(),
 			    BossAttributeSet->GetStaggerMax());
 		}
+	}
+
+	// If the boss died during the groggy window, leave it down — don't refill/resume a corpse.
+	if (!IsAlive())
+	{
+		OnGroggyEnd.Broadcast();
+		return;
 	}
 
 	// Resume attacking.

@@ -77,6 +77,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Encounter")
 	void RetryEncounter();
 
+	/** Stop a live encounter without resolving win/lose (e.g. the player backs out to the Title menu). */
+	UFUNCTION(BlueprintCallable, Category = "Encounter")
+	void AbortEncounter();
+
+	UFUNCTION(BlueprintPure, Category = "Encounter")
+	bool IsEnraged() const
+	{
+		return bEnraged;
+	}
+
 	UFUNCTION(BlueprintPure, Category = "Encounter")
 	bool IsEncounterActive() const
 	{
@@ -127,9 +137,21 @@ protected:
 	void EndEncounter(bool bWon);
 	void BuildDefaultPhases();
 
-	/** Total time before the enrage DPS check wipes the player. */
+	/** Soft-enrage: while the clock is under SoftEnrageSeconds the boss gains the Enraged buff (faster,
+	 *  harder). At 0 the hard enrage wipes the player. Makes the timer a real escalation, not just a wall. */
+	void ApplySoftEnrage();
+
+	/** Total time before the enrage hard-wipes the player. */
 	UPROPERTY(EditDefaultsOnly, Category = "Encounter")
 	float EnrageDuration = 300.0f;
+
+	/** Seconds remaining at which the boss enters soft-enrage (gains the Enraged buff). */
+	UPROPERTY(EditDefaultsOnly, Category = "Encounter")
+	float SoftEnrageSeconds = 45.0f;
+
+	/** Buff applied to the boss on soft-enrage (defaults to ULProjectGE_AttackUp). */
+	UPROPERTY(EditDefaultsOnly, Category = "Encounter")
+	TSubclassOf<class UGameplayEffect> EnrageBuffEffect;
 
 	/** HP-gated phases (descending threshold). Built with defaults if left empty. */
 	UPROPERTY(EditDefaultsOnly, Category = "Encounter")
@@ -140,9 +162,11 @@ private:
 	TWeakObjectPtr<ALProjectCharacterBase> Player;
 
 	bool bEncounterActive = false;
+	bool bEnraged = false;
 	ELProjectEncounterOutcome Outcome = ELProjectEncounterOutcome::InProgress;
 	int32 CurrentPhaseIndex = -1;
 	float EnrageSecondsRemaining = 0.0f;
+	int32 LastBroadcastEnrageSecond = -1;
 
 	FGameplayTag ActivePhaseTag;
 	FGameplayTagContainer ActivePhaseTags;

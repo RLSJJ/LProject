@@ -4,9 +4,11 @@
 
 #include "AbilitySystem/Attributes/LProjectAttributeSet.h"
 #include "AbilitySystem/Attributes/LProjectBossAttributeSet.h"
+#include "AbilitySystem/Effects/LProjectGE_AttackUp.h"
 #include "AbilitySystemComponent.h"
 #include "Boss/LProjectBossCharacter.h"
 #include "Boss/LProjectBossPatternRunnerComponent.h"
+#include "Boss/LProjectPartBreakComponent.h"
 #include "Character/LProjectCharacterBase.h"
 #include "Core/LProjectGameplayTags.h"
 
@@ -44,12 +46,59 @@ void ULProjectEncounterDirector::Tick(float DeltaTime)
 		EnterPhase(CurrentPhaseIndex + 1);
 	}
 
-	// Enrage DPS check.
+	// Enrage DPS check: a soft-enrage escalation at SoftEnrageSeconds, a hard wipe at 0.
 	EnrageSecondsRemaining = FMath::Max(EnrageSecondsRemaining - DeltaTime, 0.0f);
-	OnEnrageTick.Broadcast(EnrageSecondsRemaining);
+
+	// Broadcast only when the displayed (whole-second) value changes — not every frame.
+	const int32 WholeSecond = FMath::CeilToInt(EnrageSecondsRemaining);
+	if (WholeSecond != LastBroadcastEnrageSecond)
+	{
+		LastBroadcastEnrageSecond = WholeSecond;
+		OnEnrageTick.Broadcast(EnrageSecondsRemaining);
+	}
+
+	if (!bEnraged && EnrageSecondsRemaining <= SoftEnrageSeconds)
+	{
+		ApplySoftEnrage();
+	}
+
 	if (EnrageSecondsRemaining <= 0.0f)
 	{
 		EndEncounter(false);
+	}
+}
+
+void ULProjectEncounterDirector::ApplySoftEnrage()
+{
+	bEnraged = true;
+
+	ALProjectBossCharacter* B = Boss.Get();
+	UAbilitySystemComponent* ASC = B ? B->GetAbilitySystemComponent() : nullptr;
+	if (!ASC)
+	{
+		return;
+	}
+
+	// Mark the state (HUD/pattern hooks read it) and stack a real attack buff so enrage actually hurts.
+	ASC->AddLooseGameplayTag(TAG_State_Boss_Enraged);
+
+	TSubclassOf<UGameplayEffect> Buff = EnrageBuffEffect;
+	if (!Buff)
+	{
+		Buff = ULProjectGE_AttackUp::StaticClass();
+	}
+	FGameplayEffectContextHandle Ctx = ASC->MakeEffectContext();
+	Ctx.AddSourceObject(this);
+	const FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(Buff, 1.0f, Ctx);
+	if (Spec.IsValid())
+	{
+		ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data);
+	}
+
+	// Squeeze the boss's pattern cadence so the fight visibly speeds up under enrage.
+	if (ULProjectBossPatternRunnerComponent* Runner = B->GetPatternRunner())
+	{
+		Runner->SetEnraged(true);
 	}
 }
 
@@ -86,9 +135,11 @@ void ULProjectEncounterDirector::StartEncounter()
 	}
 
 	bEncounterActive = true;
+	bEnraged = false;
 	Outcome = ELProjectEncounterOutcome::InProgress;
 	CurrentPhaseIndex = -1;
 	EnrageSecondsRemaining = EnrageDuration;
+	LastBroadcastEnrageSecond = -1;
 	ActivePhaseTag = FGameplayTag();
 	ActivePhaseTags.Reset();
 
@@ -162,6 +213,26 @@ void ULProjectEncounterDirector::EndEncounter(bool bWon)
 	OnEncounterEnded.Broadcast(bWon);
 }
 
+void ULProjectEncounterDirector::AbortEncounter()
+{
+	if (!bEncounterActive)
+	{
+		return;
+	}
+	bEncounterActive = false;
+	Outcome = ELProjectEncounterOutcome::InProgress;
+
+	if (ALProjectBossCharacter* B = Boss.Get())
+	{
+		if (ULProjectBossPatternRunnerComponent* Runner = B->GetPatternRunner())
+		{
+			Runner->InterruptCurrentPattern();
+			Runner->SetPaused(true);
+		}
+	}
+	// No OnEncounterEnded broadcast: this is an abandon, not a win/lose resolution.
+}
+
 void ULProjectEncounterDirector::RetryEncounter()
 {
 	// Restore the boss.
@@ -171,12 +242,25 @@ void ULProjectEncounterDirector::RetryEncounter()
 		{
 			ASC->RemoveLooseGameplayTag(TAG_State_Dead);
 			ASC->RemoveLooseGameplayTag(TAG_State_Boss_Groggy);
+			ASC->RemoveLooseGameplayTag(TAG_State_Boss_Enraged);
+			// Clear any enrage/buff effects carried over from the prior attempt.
+			ASC->RemoveActiveEffects(
+			    FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(TAG_Buff_AttackUp)));
 			ASC->SetNumericAttributeBase(ULProjectAttributeSet::GetHealthAttribute(), B->GetMaxHealth());
 			if (const ULProjectBossAttributeSet* BossSet = B->GetBossAttributeSet())
 			{
 				ASC->SetNumericAttributeBase(ULProjectBossAttributeSet::GetStaggerCurrentAttribute(),
 				    BossSet->GetStaggerMax());
 			}
+		}
+		// Re-arm part durability + restore the Defense those breaks subtracted.
+		if (ULProjectPartBreakComponent* PB = B->GetPartBreak())
+		{
+			PB->ResetParts();
+		}
+		if (ULProjectBossPatternRunnerComponent* Runner = B->GetPatternRunner())
+		{
+			Runner->SetEnraged(false);
 		}
 	}
 
