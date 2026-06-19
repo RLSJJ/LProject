@@ -127,7 +127,7 @@ void ULProjectRaidHUD::BuildHUD()
 	CounterBurst = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
 	CounterBurst->SetBrush(LProjectUI::BrushSized(TEXT("Tex_Counter_Burst"), FVector2D(320, 320)));
 	Place(Root, CounterBurst, Center, FVector2D(0.5f, 0.5f), FVector2D(0, -120), FVector2D(320, 320), false);
-	CounterText = MakeText_Internal(TEXT("COUNTER!  [Q]"), 30, LProjectUI::ColCyan);
+	CounterText = MakeText_Internal(TEXT("COUNTER!  [F]"), 30, LProjectUI::ColCyan);
 	Place(Root, CounterText, Center, FVector2D(0.5f, 0.5f), FVector2D(0, -120), FVector2D(0, 0), true);
 
 	GroggyBanner->SetVisibility(ESlateVisibility::Hidden);

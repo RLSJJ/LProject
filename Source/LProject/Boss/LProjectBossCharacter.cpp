@@ -354,14 +354,20 @@ void ALProjectBossCharacter::Tick(float DeltaSeconds)
 		return;
 	}
 
-	if (const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0))
+	// Face the player ONLY while free. During a committed pattern (telegraph/strike) the boss locks its
+	// facing — so the player can run behind it to land rear hits (the Tail part-break) and dodge frontals.
+	const bool bCommitted = bPhaseTransition || bGroggy || (PatternRunner && PatternRunner->IsBusy());
+	if (!bCommitted)
 	{
-		FVector ToPlayer = PlayerPawn->GetActorLocation() - GetActorLocation();
-		ToPlayer.Z = 0.0f;
-		if (!ToPlayer.IsNearlyZero())
+		if (const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0))
 		{
-			const FRotator Target(0.0f, ToPlayer.Rotation().Yaw, 0.0f);
-			SetActorRotation(FMath::RInterpConstantTo(GetActorRotation(), Target, DeltaSeconds, FacingInterpSpeed));
+			FVector ToPlayer = PlayerPawn->GetActorLocation() - GetActorLocation();
+			ToPlayer.Z = 0.0f;
+			if (!ToPlayer.IsNearlyZero())
+			{
+				const FRotator Target(0.0f, ToPlayer.Rotation().Yaw, 0.0f);
+				SetActorRotation(FMath::RInterpConstantTo(GetActorRotation(), Target, DeltaSeconds, FacingInterpSpeed));
+			}
 		}
 	}
 

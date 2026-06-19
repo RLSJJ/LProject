@@ -74,6 +74,11 @@ struct FLProjectBossAttackPattern
 	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Mechanic")
 	float KnockbackStrength = 0.0f;
 
+	/** On strike, the boss itself lunges forward by this strength (a gap-closer / charge that relocates
+	 *  it across the arena). 0 = the boss stays put. */
+	UPROPERTY(EditDefaultsOnly, Category = "Pattern|Mechanic")
+	float ChargeStrength = 0.0f;
+
 	/**
 	 * Inverts the danger: the telegraphed shape is the SAFE zone — targets OUTSIDE it are hit instead of
 	 * those inside (a stand-in / safe-spot mechanic, the opposite of dodge-the-circle).

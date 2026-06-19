@@ -46,7 +46,9 @@ void ULProjectReadyWidget::BuildScreen()
 	    FMargin(0, 0, 0, 24),
 	    HAlign_Center);
 
-	AddRow(MakeText(TEXT("RMB Move      LMB Attack      Space Dash      Q Counter"), 15, LProjectUI::ColTextDim),
+	AddRow(MakeText(TEXT("RMB Move    LMB Attack    Space Dash    F Counter    Q/W/E/R Skills"),
+	           15,
+	           LProjectUI::ColTextDim),
 	    FMargin(0, 0, 0, 36),
 	    HAlign_Center);
 

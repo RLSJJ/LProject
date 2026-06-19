@@ -21,6 +21,6 @@ public:
 protected:
 	virtual void SetupInputComponent() override;
 
-	/** R key: ask the EncounterDirector to reset and restart the fight (test convenience). */
+	/** R key: routes through the flow subsystem to retry — only acts on a Result screen (test convenience). */
 	void HandleRetryPressed();
 };

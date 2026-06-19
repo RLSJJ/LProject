@@ -215,6 +215,13 @@ void ULProjectBossPatternRunnerComponent::ExecuteStrike()
 	SpecHandle.Data->SetSetByCallerMagnitude(TAG_SetByCaller_Damage, CurrentPattern.Damage);
 	SpecHandle.Data->SetSetByCallerMagnitude(TAG_SetByCaller_StaggerDamage, CurrentPattern.StaggerDamage);
 
+	// Gap-closer: the boss lunges forward on the strike, relocating across the arena (claims space).
+	if (CurrentPattern.ChargeStrength > 0.0f)
+	{
+		const FVector Launch = StrikeRotation.Vector() * CurrentPattern.ChargeStrength + FVector(0, 0, 120.0f);
+		B->LaunchCharacter(Launch, true, false);
+	}
+
 	TSet<AActor*> AlreadyHit;
 	for (const FOverlapResult& Overlap : Overlaps)
 	{
@@ -449,7 +456,22 @@ void ULProjectBossPatternRunnerComponent::BuildDefaultPatternData()
 	KnockbackSlam.RequiredPhaseTags.AddTag(TAG_Phase_2);
 	DefaultPatternData->Patterns.Add(KnockbackSlam);
 
-	// 6) PHASE 3+: safe-zone — the telegraphed ring is the ONLY safe spot; stand IN it or get hit.
+	// 6) PHASE 2+: charge — the boss telegraphs a forward lane, then LUNGES across it (gap-closer that
+	//    relocates the fight and knocks the player aside if caught).
+	FLProjectBossAttackPattern Charge;
+	Charge.Shape = ELProjectTelegraphShape::Box;
+	Charge.AoESize = FVector(900.0f, 180.0f, 0.0f);
+	Charge.TargetMode = ELProjectTelegraphTarget::SelfForward;
+	Charge.StrikeOffset = FVector(900.0f, 0.0f, 0.0f);
+	Charge.TelegraphDuration = 1.5f;
+	Charge.Damage = 50.0f;
+	Charge.KnockbackStrength = 1100.0f;
+	Charge.ChargeStrength = 1900.0f;
+	Charge.SelectionWeight = 0.9f;
+	Charge.RequiredPhaseTags.AddTag(TAG_Phase_2);
+	DefaultPatternData->Patterns.Add(Charge);
+
+	// 7) PHASE 3+: safe-zone — the telegraphed ring is the ONLY safe spot; stand IN it or get hit.
 	FLProjectBossAttackPattern SafeRing;
 	SafeRing.Shape = ELProjectTelegraphShape::Circle;
 	SafeRing.AoESize = FVector(420.0f, 0.0f, 0.0f);

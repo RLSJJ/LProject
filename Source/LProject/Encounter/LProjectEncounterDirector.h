@@ -48,7 +48,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLProjectEnrageTick, float, SecondsR
  * Owns the solo-raid encounter flow. Registers the boss + player, watches boss Health% to fire phase
  * gates (swapping the active phase tags the pattern runner consumes), runs the enrage DPS-check timer,
  * and resolves win (boss dead) / lose (player dead or enrage) / retry (reset both, re-arm). Broadcasts
- * delegates the debug HUD binds to. A world subsystem so any system can reach it via GetSubsystem.
+ * delegates the raid HUD + flow subsystem bind to. A world subsystem so any system can reach it via GetSubsystem.
  */
 UCLASS()
 class LPROJECT_API ULProjectEncounterDirector : public UTickableWorldSubsystem

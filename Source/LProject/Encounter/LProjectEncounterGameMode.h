@@ -22,9 +22,6 @@ class LPROJECT_API ALProjectEncounterGameMode : public ALProjectGameMode
 public:
 	ALProjectEncounterGameMode();
 
-	UFUNCTION(BlueprintCallable, Category = "Encounter")
-	void RetryEncounter();
-
 protected:
 	virtual void BeginPlay() override;
 

@@ -88,14 +88,3 @@ void ALProjectEncounterGameMode::BeginPlay()
 		}
 	}
 }
-
-void ALProjectEncounterGameMode::RetryEncounter()
-{
-	if (UWorld* World = GetWorld())
-	{
-		if (ULProjectEncounterDirector* Director = World->GetSubsystem<ULProjectEncounterDirector>())
-		{
-			Director->RetryEncounter();
-		}
-	}
-}
