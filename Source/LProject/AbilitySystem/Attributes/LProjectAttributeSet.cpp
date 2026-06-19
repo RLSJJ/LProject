@@ -2,7 +2,11 @@
 
 #include "AbilitySystem/Attributes/LProjectAttributeSet.h"
 
+#include "AbilitySystem/Attributes/LProjectBossAttributeSet.h"
+#include "AbilitySystemComponent.h"
 #include "Core/LProjectGameplayTags.h"
+#include "Engine/World.h"
+#include "Feedback/LProjectCombatFeedbackSubsystem.h"
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
 
@@ -83,6 +87,24 @@ void ULProjectAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCa
 
 	const float NewHealth = FMath::Clamp(GetHealth() - LocalDamage, 0.0f, GetMaxHealth());
 	SetHealth(NewHealth);
+
+	// Combat feel: route the resolved hit into the feedback subsystem (camera shake / hit-stop / number).
+	// This is the single juice seam — every damage source already funnels through this one exec point.
+	if (UAbilitySystemComponent* ASC = GetOwningAbilitySystemComponent())
+	{
+		AActor* Owner = GetOwningActor();
+		UWorld* World = Owner ? Owner->GetWorld() : nullptr;
+		if (World)
+		{
+			if (ULProjectCombatFeedbackSubsystem* FB = World->GetSubsystem<ULProjectCombatFeedbackSubsystem>())
+			{
+				const bool bTargetIsBoss =
+				    ASC->HasAttributeSetForAttribute(ULProjectBossAttributeSet::GetStaggerCurrentAttribute());
+				const bool bGroggy = ASC->HasMatchingGameplayTag(TAG_State_Boss_Groggy);
+				FB->ReportHit(Owner, LocalDamage, bTargetIsBoss, bGroggy);
+			}
+		}
+	}
 
 	// Death: tag the owner so abilities/patterns can gate on it (the EncounterDirector resolves outcome).
 	if (NewHealth <= 0.0f)
